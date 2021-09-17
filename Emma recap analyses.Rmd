@@ -1,0 +1,449 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(car)
+library(lmSupport)
+library(car)
+
+##GOAL##
+# A) Exp 1, Prolific and Comm. Sci. & Disorders (monolinguals and bilinguals), participants (Ps) # start with 24 and 26 only.
+# B) Exp 2, Prolific and CSD (mono only), Ps 24, 26 and 32 (L2)
+# C) Follow-up, 24, 26, 32 (all).
+
+#### Starting with C because it's the largest dataset.####
+# Going from the full db, I'll create the specific datasets from it.
+# Load data 
+
+d_raw <- read_csv("full_exp_24_26_32.csv") %>% janitor::clean_names()
+bg_raw <- read_csv("percent_eng_35.csv") %>% janitor::clean_names()
+
+# limit bg to what's going in the model & exclusion
+# group, years ed, lextale, p_number, percent eng
+bg_raw <- bg_raw %>%
+  select(participant_id, years_education, lextale_score, eng_percent, group, no_languages)
+
+```
+# Clean up demographics
+```{r}
+unique(bg_raw$years_education)
+"4  of University and complete basic education"
+
+bg_raw$years_education <- gsub("4  of University and complete basic education", "16", bg_raw$years_education)
+
+bg_raw$years_education <- as.numeric(bg_raw$years_education)
+
+mean(bg_raw$years_education, na.rm = T)
+
+# center 
+bg_raw$years_education_c <- bg_raw$years_education - mean(bg_raw$years_education, na.rm = T)
+
+varDescribe(bg_raw$years_education_c)
+
+bg_raw$lextale_score_c <- bg_raw$lextale_score - mean(bg_raw$lextale_score, na.rm = T)
+
+bg_raw$eng_percent_c <- bg_raw$eng_percent - mean(bg_raw$eng_percent, na.rm = T)
+```
+# Clean overall 24_26_32 data
+```{r}
+
+# I need to reverse the cleaning order to write the results, from d_raw, to wave2 to wave.
+# Merging attention check data, exclude at 2.5 SD from mean.
+att = read.csv("attention_check_rt_all.csv")
+varDescribe(att$AttnCheck_RT)
+hist(att$AttnCheck_RT)
+d <- merge(d_raw, att, by = "participant_id")
+
+##########################
+# Select Experiment 1 data, to get exclusions per exp.
+##########################
+
+exp1 = subset(d, participant_id < 3000000)
+# clean and trim RTs for correct accuracies
+# if the RawRT value is negative, it should be counted as an outlier 
+# initialize outlier variable
+exp1$Outlier <- 0
+library(plyr)
+data.out <-ddply(subset(exp1, Outlier == 0), .(), transform, 
+                 Pos_outlier = mean(AttnCheck_RT) + (sd(AttnCheck_RT)*2.5), 
+                 Neg_outlier = mean(AttnCheck_RT) - (sd(AttnCheck_RT)*2.5))
+
+data.out$Outlier_P <- ifelse(data.out$AttnCheck_RT > data.out$Pos_outlier, 1, 0)
+data.out$Outlier_N <- ifelse(data.out$AttnCheck_RT < data.out$Neg_outlier, 1, 0)
+
+sum(data.out$Outlier_P) ## cases excluded #18 (makes sense, only 1 P had values >2.5 SDs)
+sum(data.out$Outlier_N) ## 0
+
+d_attn_out <- data.out[data.out$Outlier_P==0,] 
+d_clean4 <-d_attn_out[d_attn_out$reaction_time<5000,] # needed separately for writing results.# 260 excl.
+d_clean5 <-d_clean4[d_clean4$reaction_time>150,]#21
+
+# clean and trim RTs for correct accuracies
+# if the RawRT value is negative, it should be counted as an outlier 
+# initialize outlier variable
+d_clean5$Outlier <- 0
+
+# calculate subject-specific standard deviation points to establish outlier criteria
+data.out2 <-ddply(subset(d_clean5, Outlier == 0), .(participant_id), transform, 
+                 Pos_outlier = mean(reaction_time) + (sd(reaction_time)*2.5), 
+                 Neg_outlier = mean(reaction_time) - (sd(reaction_time)*2.5))
+
+data.out2$Outlier_P <- ifelse(data.out2$reaction_time > data.out2$Pos_outlier, 1, 0)
+data.out2$Outlier_N <- ifelse(data.out2$reaction_time < data.out2$Neg_outlier, 1, 0)
+
+sum(data.out2$Outlier_P) ## cases excluded #24
+sum(data.out2$Outlier_N)
+
+d_out <- data.out2[data.out2$Outlier_P==0,] 
+dA <- merge(bg_raw, d_out, by = "participant_id")
+## dA is dataset for exp 1 ##
+# Create dummy codes
+dA$wordID = varRecode(dA$word, c("gelede", "konade", "posof", "bisole", "bedos", "tades", "padod", "darege", "gagek"), c(1, 2, 3, 4, 5, 6, 7, 8, 9))
+
+dA$condition <- as.factor(as.character(dA$condition)) 
+
+levels(dA$condition)
+contrasts(dA$condition) = varContrasts(dA$condition, "Dummy", RefLevel = 3)
+
+# By bilingual status, keeping % exposure to English only.
+library(lme4)
+dA$bilingstatus = varRecode(dA$no_languages.x, c("1", "2", "3", "4", "9"), c(-.5, .5, .5, .5, .5))
+
+dA$condition <- as.factor(as.character(dA$condition)) 
+
+levels(dA$condition)
+contrasts(dA$condition) = varContrasts(dA$condition, "Dummy", RefLevel = 2)
+
+control=glmerControl(optimizer="bobyqa",optCtrl=list(maxIter=1000))
+
+mod_exp1 <- glmer(correct_x ~ condition * bilingstatus + years_education_c + lextale_score_c + 
+                              (1 |participant_id) + 
+                              (1 |wordID), 
+               family = binomial, data=dA, 
+               control=glmerControl(optimizer="bobyqa", 
+                                    optCtrl=list(maxfun=100000)))
+
+summary(mod_exp1)
+isSingular(mod_exp1)
+Anova(mod_exp1, type=3)
+
+##########################
+##### Same for exp 2:#####
+##########################
+
+# Exclude specific participants and clean leftover 24_26 (mono)_32 data
+# remove the bilinguals in 24s and 26s.
+selectmono <- subset(d, participant_id<3000000 & no_languages==1)
+# Keep the L2s.
+# remove monolingual in l2 group, participant 3241717
+d_raw0 <- subset(d, participant_id != 3241717)
+select32 <- subset(d, participant_id>3000000)
+exp2 <- rbind(selectmono, select32)
+
+# Exclude Ps from attention check.
+exp2$Outlier <- 0
+library(plyr)
+data.out2 <-ddply(subset(exp2, Outlier == 0), .(), transform, 
+                 Pos_outlier = mean(AttnCheck_RT) + (sd(AttnCheck_RT)*2.5), 
+                 Neg_outlier = mean(AttnCheck_RT) - (sd(AttnCheck_RT)*2.5))
+
+data.out2$Outlier_P <- ifelse(data.out2$AttnCheck_RT > data.out2$Pos_outlier, 1, 0)
+data.out2$Outlier_N <- ifelse(data.out2$AttnCheck_RT < data.out2$Neg_outlier, 1, 0)
+
+sum(data.out2$Outlier_P) ## cases excluded #18 (makes sense, only 1 P had values >2.5 SDs)
+sum(data.out2$Outlier_N) ## 0
+
+d_attn_out2 <- data.out2[data.out2$Outlier_P==0,] 
+d_clean6 <-d_attn_out2[d_attn_out2$reaction_time<5000,] # needed separately for writing results.# 186 excl.
+d_clean7 <-d_clean6[d_clean6$reaction_time>150,]#21
+
+# clean and trim RTs for correct accuracies
+# if the RawRT value is negative, it should be counted as an outlier 
+# initialize outlier variable
+d_clean7$Outlier <- 0
+
+# calculate subject-specific standard deviation points to establish outlier criteria
+data.out3 <-ddply(subset(d_clean7, Outlier == 0), .(participant_id), transform, 
+                 Pos_outlier = mean(reaction_time) + (sd(reaction_time)*2.5), 
+                 Neg_outlier = mean(reaction_time) - (sd(reaction_time)*2.5))
+
+data.out3$Outlier_P <- ifelse(data.out3$reaction_time > data.out3$Pos_outlier, 1, 0)
+data.out3$Outlier_N <- ifelse(data.out3$reaction_time < data.out3$Neg_outlier, 1, 0)
+
+sum(data.out3$Outlier_P) ## cases excluded #27
+sum(data.out3$Outlier_N)
+
+dexp2 <- data.out3[data.out3$Outlier_P==0,] # d_out is fine here. 
+
+dB <- merge(bg_raw, dexp2, by = "participant_id")
+
+# Create dummy codes
+dB$wordID = varRecode(dB$word, c("gelede", "konade", "posof", "bisole", "bedos", "tades", "padod", "darege", "gagek"), c(1, 2, 3, 4, 5, 6, 7, 8, 9))
+dB$groupC = varRecode(dB$group, c("1", "3"), c(-.5, .5)) # 1 are mono, 3 are L2
+dB$condition <- as.factor(as.character(dB$condition)) 
+
+levels(dB$condition)
+contrasts(dB$condition) = varContrasts(dB$condition, "Dummy", RefLevel = 2)
+
+# By group, mono (group 1) or L2 (group 3)
+library(lme4)
+
+control=glmerControl(optimizer="bobyqa",optCtrl=list(maxIter=1000))
+
+mod_exp2 <- glmer(correct_x ~ condition * groupC + years_education_c + lextale_score_c + 
+                              (1 |participant_id) + 
+                              (1 |wordID), 
+               family = binomial, data=dB, 
+               control=glmerControl(optimizer="bobyqa", 
+                                    optCtrl=list(maxfun=100000)))
+
+summary(mod_exp2)
+isSingular(mod_exp2)
+Anova(mod_exp2, type=3)
+
+#############################
+#####Same for follow-up:#####
+#############################
+
+# remove monolingual in l2 group, participant 3241717
+d <- subset(d, participant_id != 3241717)
+# clean and trim RTs for correct accuracies
+# if the RawRT value is negative, it should be counted as an outlier 
+# initialize outlier variable
+d$Outlier <- 0
+library(plyr)
+data.out <-ddply(subset(d, Outlier == 0), .(), transform, 
+                 Pos_outlier = mean(AttnCheck_RT) + (sd(AttnCheck_RT)*2.5), 
+                 Neg_outlier = mean(AttnCheck_RT) - (sd(AttnCheck_RT)*2.5))
+
+data.out$Outlier_P <- ifelse(data.out$AttnCheck_RT > data.out$Pos_outlier, 1, 0)
+data.out$Outlier_N <- ifelse(data.out$AttnCheck_RT < data.out$Neg_outlier, 1, 0)
+
+sum(data.out$Outlier_P) ## cases excluded #18 (makes sense, only 1 P had values >2.5 SDs)
+sum(data.out$Outlier_N) ## 0
+
+d_attn_out <- data.out[data.out$Outlier_P==0,] 
+
+d_clean4 <-d_attn_out[d_attn_out$reaction_time<5000,] # needed separately for writing results.# 315 excl.
+d_clean5 <-d_clean4[d_clean4$reaction_time>150,]#28
+
+varDescribe(d_clean5$reaction_time)
+
+# clean and trim RTs for correct accuracies
+# if the RawRT value is negative, it should be counted as an outlier 
+# initialize outlier variable
+d_clean5$Outlier <- 0
+
+# calculate subject-specific standard deviation points to establish outlier criteria
+data.out2 <-ddply(subset(d_clean5, Outlier == 0), .(participant_id), transform, 
+                 Pos_outlier = mean(reaction_time) + (sd(reaction_time)*2.5), 
+                 Neg_outlier = mean(reaction_time) - (sd(reaction_time)*2.5))
+
+data.out2$Outlier_P <- ifelse(data.out2$reaction_time > data.out2$Pos_outlier, 1, 0)
+data.out2$Outlier_N <- ifelse(data.out2$reaction_time < data.out2$Neg_outlier, 1, 0)
+
+sum(data.out2$Outlier_P) ## cases excluded #39
+sum(data.out2$Outlier_N)
+
+d_out <- data.out2[data.out2$Outlier_P==0,] # d_out is fine here.
+d3 <- merge(bg_raw, d_out, by = "participant_id")
+## d3 is dataset for C ##
+
+# Create dummy codes
+d3$wordID = varRecode(d3$word, c("gelede", "konade", "posof", "bisole", "bedos", "tades", "padod", "darege", "gagek"), c(1, 2, 3, 4, 5, 6, 7, 8, 9))
+
+d3$condition <- as.factor(as.character(d3$condition)) 
+
+levels(d3$condition)
+contrasts(d3$condition) = varContrasts(d3$condition, "Dummy", RefLevel = 2)
+
+# Collapse across everyone, keeping % exposure to English only.
+library(lme4)
+mod <- glmer(correct_x ~ condition * eng_percent_c + years_education_c + lextale_score_c + 
+                              (1 |participant_id) + 
+                              (1 |wordID), 
+               family = binomial, data=d3, 
+               control=glmerControl(optimizer="bobyqa", 
+                                    optCtrl=list(maxfun=100000)))
+
+summary(mod)
+isSingular(mod)
+Anova(mod, type=3)
+
+```
+
+```{r}
+# Graph Exp 1
+dA$groupF <- as.factor(varRecode(dA$bilingstatus, c(-.5,.5), c('Monolingual','Bi/Multilingual')))
+dA$condF <- as.factor(varRecode(dA$condition, c("cough", "fluent", "disfluent"), c("Cough", "Fluent", "Disfluent")))
+
+md_graph <- glm(correct_x ~ condF * groupF, family = binomial, data=dA)
+
+pX1 <- expand.grid(condF=c("Cough", "Fluent", "Disfluent"), groupF=c('Monolingual','Bi/Multilingual'))
+pY1 <- predict(md_graph, pX1, type='response', se.fit=T)
+pY1 <- cbind(pY1, pX1)
+pY1$correct_x <- pY1$fit
+
+plot2b <-ggplot(pY1,aes(x=condF,y=correct_x,fill=condF))+
+  geom_bar(stat="identity")+
+  geom_errorbar(aes(ymin=correct_x-se.fit,ymax=correct_x+se.fit), stat='identity', width=.25) +
+  facet_wrap(~groupF)+
+  xlab("Condition")+
+  ylab("Predicted Proportion Correct")+
+  geom_hline(yintercept=.33, linetype="dashed", color = "black", size=.25) +
+  theme_bw()+
+  theme(legend.position="none") +
+  scale_y_continuous(breaks = seq(0, 1, by=0.33)) +
+  coord_cartesian(ylim = c(0.33, 1), expand = F) 
+plot2b
+
+# Graph Exp 2
+
+dB$groupF <- as.factor(varRecode(dB$groupC, c(-.5,.5), c('Monolingual','L2 English')))
+dB$condF <- as.factor(varRecode(dB$condition, c("cough", "fluent", "disfluent"), c("Cough", "Fluent", "Disfluent")))
+
+md_graph2 <- glm(correct_x ~ condF * groupF, family = binomial, data=dB)
+
+pX1 <- expand.grid(condF=c("Cough", "Fluent", "Disfluent"), groupF=c('Monolingual','L2 English'))
+pY1 <- predict(md_graph2, pX1, type='response', se.fit=T)
+pY1 <- cbind(pY1, pX1)
+pY1$correct_x <- pY1$fit
+
+plot2 <-ggplot(pY1,aes(x=condF,y=correct_x,fill=condF))+
+  geom_bar(stat="identity")+
+  geom_errorbar(aes(ymin=correct_x-se.fit,ymax=correct_x+se.fit), stat='identity', width=.25) +
+  facet_wrap(~groupF)+
+  xlab("Condition")+
+  ylab("Predicted Proportion Correct")+
+  geom_hline(yintercept=.33, linetype="dashed", color = "black", size=.25) +
+  theme_bw()+
+  theme(legend.position="none") +
+  scale_y_continuous(breaks = seq(0, 1, by=0.33)) +
+  coord_cartesian(ylim = c(0.33, 1), expand = F) 
+plot2
+
+# Graph follow-up
+# With Eng % as continuous var. on x-axis, acc on y axis. Can have a panel per condition.
+
+d3$condF <- as.factor(varRecode(d3$condition, c("cough", "fluent", "disfluent"), c("Cough", "Fluent", "Disfluent")))
+
+md_graph3 <- glm(correct_x ~ condF * eng_percent, family = binomial, data=d3)
+unique(d3$eng_percent)
+pX1 <- expand.grid(eng_percent = seq(min(d3$eng_percent, na.rm = T), max(d3$eng_percent, na.rm = T)), condF=c("Cough", "Fluent", "Disfluent")) 
+pY1 <- predict(md_graph3, pX1, type='response', se.fit=T)
+pY1 <- cbind(pY1, pX1)
+pY1$correct_x <- pY1$fit
+
+plot3 <-ggplot(pY1,aes(x=eng_percent,y=correct_x))+
+  geom_point(data = d3, position = position_jitter(w=1, h=1))+
+  geom_smooth(aes(ymin=correct_x-se.fit,ymax=correct_x+se.fit, color = '#ebaf9c'), stat='identity', width=.25) +
+  facet_wrap(~condF)+
+  scale_x_continuous(("Percent English Exposure"), breaks = seq(0, 100, by=25))+
+  scale_y_continuous(breaks = seq(0, 1, by=.33))+
+  ylab("Predicted Proportion Correct")+
+  theme_bw()+
+  theme(legend.position="none") +
+  coord_cartesian(ylim = c(0.33, 1), expand = F) 
+plot3
+
+
+# Are we above chance? #
+unique(dA$group)
+coughM <- dA %>%
+  dplyr::filter(condition == "cough", group == 1)
+
+fluentM <- dA %>%
+  dplyr::filter(condition == "fluent", group == 1)
+
+disfluentM <- dA %>%
+  dplyr::filter(condition == "disfluent", group == 1)
+varDescribe(disfluentM)
+
+coughB <- dA %>%
+  dplyr::filter(condition == "cough", group == 2)
+
+fluentB <- dA %>%
+  dplyr::filter(condition == "fluent", group == 2)
+
+disfluentB <- dA %>%
+  dplyr::filter(condition == "disfluent", group == 2)
+
+coughMB <- dA %>%
+  dplyr::filter(condition == "cough")
+varDescribe(coughMB)
+
+fluentMB <- dA %>%
+  dplyr::filter(condition == "fluent")
+varDescribe(fluentMB)
+
+disfluentMB <- dA %>%
+  dplyr::filter(condition == "disfluent")
+varDescribe(disfluentMB)
+##
+coughMB <- dB %>%
+  dplyr::filter(condition == "cough")
+varDescribe(coughMB)
+
+fluentMB <- dB %>%
+  dplyr::filter(condition == "fluent")
+varDescribe(fluentMB)
+
+disfluentMB <- dB %>%
+  dplyr::filter(condition == "disfluent")
+varDescribe(disfluentMB)
+
+##
+coughMB <- d3 %>%
+  dplyr::filter(condition == "cough")
+varDescribe(coughMB)
+
+fluentMB <- d3 %>%
+  dplyr::filter(condition == "fluent")
+varDescribe(fluentMB)
+
+disfluentMB <- d3 %>%
+  dplyr::filter(condition == "disfluent")
+varDescribe(disfluentMB)
+
+# one-sample t-test. Preliminary test to check one-sample t-test assumptions: Is this a large sample? Yes, because n > 30.#
+
+cough_chanceM <- t.test(coughM$correct_x, mu = .33)
+cough_chanceM
+
+fluent_chanceM <- t.test(fluentM$correct_x, mu = .33)
+fluent_chanceM
+
+disfluent_chanceM <- t.test(disfluentM$correct_x, mu = .33)
+disfluent_chanceM
+
+cough_chanceB <- t.test(coughB$correct_x, mu = .33)
+cough_chanceB
+
+fluent_chanceB <- t.test(fluentB$correct_x, mu = .33)
+fluent_chanceB
+
+disfluent_chanceB <- t.test(disfluentB$correct_x, mu = .33)
+disfluent_chanceB
+
+cough_chanceMB <- t.test(coughMB$correct_x, mu = .33)
+cough_chanceMB
+
+fluent_chanceMB <- t.test(fluentMB$correct_x, mu = .33)
+fluent_chanceMB
+
+disfluent_chanceMB <- t.test(disfluentMB$correct_x, mu = .33)
+disfluent_chanceMB
+
+## Results ##
+
+# All above chance except bi/multiling at chance in disfluent cond.
+
+```
+

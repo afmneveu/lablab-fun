@@ -1,0 +1,366 @@
+---
+title: "Questionnaire Data"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+### Merging LEAP-Q CSV files ###
+getwd()
+library("dplyr")                                                  # Load dplyr package
+library("plyr")                                                   # Load plyr package
+library("readr")                                                  # Load readr package
+
+LEAPQ <- list.files(path = "~/Desktop/",     
+  pattern = "*.csv", full.names = TRUE) %>% 
+  lapply(read_csv) %>%                                            # Store all files in list
+  bind_rows                                                       # Combine data sets into one data set 
+LEAPQ                                                         # Print data to RStudio console
+
+write.csv(LeapQ, "LEAPQ_full.csv")
+LeapQ <- LEAPQ %>%
+  dplyr::select("Participant Completion Code", "Question Key", "Response")
+names(LeapQ) <- c("Participant.Completion.Code", "Question.Key", "Response")
+
+# Demog Age #
+library(tidyverse)
+age<-filter(LeapQ, Question.Key=="response-2")
+
+age$Response <- sub("19 years", "19", age$Response)
+
+table(age$Response)
+
+age$Response <- as.numeric(as.character(age$Response))  # Convert one nominal variable to numeric.
+names(age)[3] <- "Age"
+
+MeanAge <- mean(age$Response)
+MeanAge
+
+# Demog education # Data isn't continuous but ordinal. Info on treating ordinal var as num: 
+# https://www.theanalysisfactor.com/pros-and-cons-of-treating-ordinal-variables-as-nominal-or-continuous/
+# The distance between the levels of ed aren't exactly equal:
+#Less than High School = If you count ed from age 6, until 14 = 8 or less
+#High School = 12
+#Professional Training = 13 or 14
+#Some College = 13-16
+#College = 16
+#Some Graduate School = 17
+#Masters = 18
+#Ph.D./M.D./J.D. = 18+
+
+# No one had response-6-9.
+Ed <- filter(LeapQ, Question.Key=="response-6-2"|Question.Key=="response-6-4"|Question.Key=="response-6-5"|Question.Key=="response-6-6"|Question.Key=="response-6-7"|Question.Key=="response-6-8")
+
+# No 6-1, 6-3 and 6-9.
+Ed <- Ed %>%
+  dplyr::select("Participant.Completion.Code", "ed")
+names(Ed)<- c("Participant.Completion.Code", "Ed")
+
+LeapQ$Ed <- varRecode(LeapQ$Question.Key, c("response-6-1","response-6-2", "response-6-3", "response-6-4", "response-6-5", "response-6-6", "response-6-7", "response-6-8"), c(1, 2, 3, 4, 5, 6, 7 ,8 ))
+
+LEAP_Q <- subset (LEAP_Q, select = -ed)
+LEAP_Q <- merge(LEAP_Q, Ed, by='Participant.Completion.Code')
+
+L2 <- filter(LeapQ, Question.Key=="response-34")
+table(L2$Response) # I can first run the data with everyone and then more stringently just with the Spanish L2.
+L2$L2Type <- varRecode(L2$Response, c("Arabic","Arabic (same time)", "Arabic (simultaneously learned with English; forgot a lot of it)", "English", "French", "Gujarati", "Italian", "Language", "n/a", "na", "none", "not a natural bilingual", "Punjabi", "simultaneously Spanish", "spanish", "Spanish", "Spanish (Learned in School)", "Spanish (simultaneous)", "Spanish simultaneous", "spanish, english", "Spanish, simultaneous"), c(0, 0, 0, 3, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 2, 1, 1, 1, 2, 2, 2, 2 )) # I can do binary for now (excl about 30 ppl).
+
+# L2 Binary: 1 = L2 is SP, 0 is not.
+Leap_Q <- merge(LeapQ, Age, by='Participant.Completion.Code')
+Leap_Q2 <- merge(Leap_Q, L2Type, by='Participant.Completion.Code')
+
+Age <- age %>%
+  dplyr::select("Participant.Completion.Code", "Age")
+L2Type <- L2 %>%
+  dplyr::select("Participant.Completion.Code", "L2Type")
+
+L2_AoA <- filter(Leap_Q2, Question.Key=="response-24")
+L2_AoA$Response <- gsub("13 years old", "13", L2_AoA$Response)
+L2_AoA <- L2AoA %>%
+  dplyr::select("Participant.Completion.Code", "Response")
+names(L2_AoA) <- c("Participant.Completion.Code", "L2_AoA")
+LEAP_Q <- Leap_Q2 %>%
+  dplyr::select("Participant.Completion.Code", "ed", "Age", "L2Type")
+LEAP_Q <- merge(LEAP_Q, L2_AoA, by='Participant.Completion.Code')
+write.csv(LEAP_Q, "Leap_Q_unique.csv")
+
+
+# qwkvho: ASL as L2, exclude
+L2AoA = L2_AoA[-c(76),]
+L2AoA$Response <- gsub("(Spanish) 19 years old", "19", L2AoA$Response)
+L2AoA$Response <- as.numeric(as.character(L2AoA$Response))  # It removed all the letters, replaced by NA.
+L2AoA[96, 3] <- 13
+
+# Want to remove all the duplicates and have one row per subject.
+unique(LEAP_Q, by = "Participant.Completion.Code", "Age", "L2Type", "L2_AoA", "Ed")
+LEAP_Q <- unique(LEAP_Q, incomparables = FALSE, MARGIN = 1,
+       fromLast = FALSE)
+
+### Merging THQ CSV files ###
+
+THQ <- list.files(path = "~/Desktop/",     # Identify all csv files in folder
+                       pattern = "*.csv", full.names = TRUE) %>% 
+  lapply(read_csv) %>%                                            # Store all files in list
+  bind_rows                                                       # Combine data sets into one data set 
+THQ                                                         # Print data to RStudio console
+
+write.csv(Thq, "THQ_full.csv")
+
+Thq <- THQ %>%
+  dplyr::select("Participant Completion Code", "Question Key", "Response")
+names(Thq) <- c("Participant.Completion.Code", "Question.Key", "Response")
+
+StudiedTR <- filter(Thq, Question.Key=="response-1-1"|Question.Key=="response-1-2"|Question.Key=="response-1-3")
+StudiedTR$Studied_TR <- varRecode(StudiedTR$Question.Key, c("response-1-1", "response-1-2", "response-1-3"), c(1, 1, 0))
+StudiedTR <- StudiedTR %>%
+  dplyr::select("Participant.Completion.Code", "Studied_TR")
+
+ProExpTR <- filter(Thq, Question.Key=="response-2-1"|Question.Key=="response-2-2"|Question.Key=="response-2-3"|Question.Key=="response-2-4")
+ProExpTR$ProExp_TR <- varRecode(ProExpTR$Question.Key, c("response-2-1", "response-2-2", "response-2-3", "response-2-4"), c(1, 1, 1, 0))
+ProExpTR <- ProExpTR %>%
+  dplyr::select("Participant.Completion.Code", "ProExp_TR")
+
+InformalTR <- filter(Thq, Question.Key=="response-3-1"|Question.Key=="response-3-2")
+InformalTR$Informal_TR <- varRecode(InformalTR$Question.Key, c("response-3-1", "response-3-2"), c(1, 0))
+InformalTR <- InformalTR %>%
+  dplyr::select("Participant.Completion.Code", "Informal_TR")
+
+
+# Merging WJs #
+
+#maulik
+#  subset(df, select = -c(Reaction.Time))
+
+
+IGNORE_RT <- function(df){
+  df <- df[, !(colnames(df) %in% c("Reaction.Time","Reaction Time"))]
+}
+
+WJ_SP_all <- list.files(path = "~/Desktop/",     
+                       pattern = "*.csv", full.names = TRUE) %>% 
+  lapply(read_csv) %>%                                            # Store all files in list
+  lapply(IGNORE_RT)  %>%
+  bind_rows
+WJ_SP_all  
+
+WJSp <- WJ_SP_all %>%
+  dplyr::select("Participant Completion Code", "Zone Name", "Response")
+names(WJSp) <- c("Participant.Completion.Code", "Zone.Name", "Response")
+
+write.csv(WJSp, "WJ_SP_all.csv")
+
+
+IGNORE_RT <- function(df){
+  df <- df[, !(colnames(df) %in% c("Reaction.Time","Reaction Time"))]
+}
+WJ_ENG_all <- list.files(path = "~/Desktop/",     
+                       pattern = "*.csv", full.names = TRUE) %>% 
+  lapply(read_csv) %>%                                            # Store all files in list
+  lapply(IGNORE_RT)  %>%
+  bind_rows
+WJ_ENG_all  
+
+WJEng <- WJ_ENG_all %>%
+  dplyr::select("Participant Completion Code", "Zone Name", "Response")
+names(WJEng) <- c("Participant.Completion.Code", "Zone.Name", "Response")
+write.csv(WJEng, "WJ_ENG_all.csv")
+WJEng <- read.csv("WJ_ENG_all.csv")
+WJSp <- read.csv("WJ_SP_all.csv")
+library(base)
+tolower(WJSp$Response)
+options(max.print = 8000) 
+# Rita confirmed to accept typos.
+WJSp_Acc <- c("africa", "armonica", "bambu", "barquilla", "caja registradora", "registradora", "cheque", "cheques", "clave", "estetoscopio", "fuelle", "gondola", "llama", "alpaca", "vicuna", "guanaco", "manivela", "polea", "marioneta", "microscopio", "mortero", "pilon", "nudos", "partenon", "pedal", "pedestal", "petroglifo", "plinto", "raqueta","paleta", "san basilio", "torniquete", "Africa", "áfrica", "África", "Africa/ continente", "Alpaca","armónica", "Armónica", "Bambu", "bambú", "Bambú", "Cheque", "el cheque", "el alpaca", "el bambu", "El bambu", "el bambú", "El cheque", "el continente (africa)", "El estetoescopio", "el estétoscopio", "el estétoscopio", "el estetoscopo", "el estetoscopo", "el llama", "el marioneta", "el microscopio", "El microscopio", "el mortero", "el nudo", "El partenón", "el pedal", "El pedal", "El pedestal", "estetescopio", "estetocópio", "Estetoscopio", "Gondola", "góndola", "Góndola", "gondola/barco", "gondula", "la alpaca", "la armonica", "La armonica", "la caja registradora", "la cheque", "la estetoscopio", "La gandola", "la gondola", "la góndola", "la lama", "la llama", "La llama", "la marioneta", "La pedestal", "la raqueta", "la racqueta", "La raqueta", "la raqueta de tenis", "la registradora", "lama", "Llama", "llama, vicuña", "los nudos", "Marioneta", "marionetas", "marionetta", "micoscopio", "microscopiio", "Microscopio", "microscópio", "Microscópio", "nudo", "Nudo", "Nudos", "Partenon", "partenón", "Partenón", "pdeal", "Pedal", "pedal de bicicleta", "racqueta", "Raqueta", "raqueta de tenis", "raqueta de tennis", "raqueta de tenís", "Torniquete", "torniqueta", "Torniqueta", "un cheque", "un pedal de bicicleta”, “chirmolera”, “molcajete”, “cuenco”, “mortar y pestal”, “llama, vicu√±a”, “mortar”, “mocajete”, “mortal”, “pil√≥n”, “pilón", "Molcajete", "Cuenco", "Mocajete", "Morta", "Mortal", "el microscopo", "El microscopo", "El Microscopo", "microscope", "Microscope", "microspoco", "microscopia", "Microscopia", "la microscopa", "microscopa", "Microscopa", "micriscopio", "Microscopo", "Micróscopo", "microspopo", "stesescopo", "Estetiscopio", "el stetoscopio", "stetoscopo", "stetoscopio", "El estetoescopio", "estetescopio", "stescopo", "estetocopa", "titere", "Titere", "Jinete/Marioneta", "payado", "títere", "Títere", "el tititre (no creo que sea correcta, peroalgo así)", "titiritero", "tetera", "Titera", "el africa", "El Africa", "la africa", "La Africa", "La África", "La áfrica")
+
+# Excluding English spelling.Accepting what can be typos.
+#(From Marg) now make a new column in the words dataframe. Default it to "no"
+WJSp$WJSp_Score <- 0
+#Then change it to yes if the word is one of the words we care about
+WJSp[WJSp$Response%in%WJSp_Acc,]$WJSp_Score<-1
+
+#/maulik
+
+# Scoring the WJs. Recode based on the codebook of accepted answers? For now I want 1s and 0s, then we'll get an average score that'll go in the main db.
+
+#Let's check each word to see if it is one of the words we're looking for. First put together all the words we care about
+
+tolower(WJEng$Response)
+
+WJEng_Acc <- c("luggage", "suitcase", "suitcases","ironing board","compass","pliers", "fire extinguisher", "file cabinet", "filing cabinet", "cabinet","thimble", "thimbel", "hang glider","hinges", "hourglass", "tripod", "coliseum", "observatory", "flamenco", "salsa dancer", "metronome", "pendulum", "candelabra", "candelabrum", "turnstile", "turnstyle", "yoke", "neck yoke", "ox yoke", "monocle", "cornucopia", "festoon", "garland", "tendril", "sabot", "a candlabra", "a clog", "a compass", "a cornucopia", "a filing cabinet", "a fire extinguisher", "a flamenco dancer", "a garland", "a metronome", "a monocle", "a pendulum", "a thimble", "a tripod", "a turnstile", "a yoke", "an hourglass", "an ironing board", "cabinent", "Candelabra", "Candelabrum", "candleabra", "Candleabra", "coleseum", "Colesseum", "colessium", "Coliseum", "Coliseum (sp?)", "colisieum", "colisium", "Colisseum", "Collaseum", "colleseum", "collesium", "collessum", "colliseum", "Colliseum", "colloseum", "Colloseum", "collosseum", "Collosseum", "collsium", "Colluseam", "colluseum", "coloseum", "colossem", "colosseum", "Colosseum", "Colossium", "colusium", "colussium", "com[pass", "Compas", "Compass", "cornacopia", "Cornacopia", "cornicopia", "Cornicopia", "cornocopia", "cornucopa", "cornucopeia", "Cornucopia", "file cabinent", "File Cabinet", "File cabnet", "file cabnient", "file cabniet", "Fileing cabinet", "filing cabenet", "Filing cabinet", "Filing Cabinet", "filing cabinet.", "filing cabinets", "filing cabnet", "filling cabinet", "fire estinguisher", "fire extinguiser", "Fire Extinguisher", "fire extingusher", "fire extingusher", "Fire extingusiher", "Fire extuinguisher", "flamenca dancer", "Flamenco", "flamenco dancer", "Flamenco dancer", "flamenco dancer?", "flamenco dancing", "flaminco dancer", "Garland", "hang glide", "Hang glider", "hang gliding", "Hang gliding", "hang-glider", "Hang-Gliding", "hangglider", "Hangglider", "hanggliding", "hanglider", "Hanglider", "hangliding", "hinge", "Hinge", "hinge?", "Hinges", "hoourglass", "hour glass", "Hour-glass", "Hourglas", "hourglass", "Hourglass", "hourglass (timer)", "Ironing Board", "metranome", "metranome", "metranome", "Metrinome", "Metronome", "metronoome", "monacle", "Monacle", "monical", "monicle", "monocal", "Monocle", "Monocole", "Observatory", "observatoy", "Pedilum", "pedulum", "pedulum", "pendellum", "pendelum", "Pendelum", "penduljm", "Pendulum", "pilers", "pliars", "Pliars", "plier", "plyer", "plyers", "Plyers", "salsa dancer", "Salsa dancer", "slasa dcer", "suit cases", "Suitcase", "Suitcases", "suitecases", "Tendril", "thimbill", "thimbol", "tri pod", "tri-pod", "Tri-pod", "Tripod", "trunstile", "turn stile", "turn style", "Turnstile", "turnstiles", "Turnstyle", "Yoke", "yolk", "Yolk", "paragliding", "baggage", "door hinges", "Baggage", "Door hinge", "Paraglider", "paraglider", "Ironing board", "Thimble", "The Coliseum", "cornocopea", "coricopia", "luggages","Luggage", "Luggages", "the Space Observatory", "thumbelle", "the Colisseum", "Roman Colosseum", "Rome? collaseum?", "turnstill", "Paragliding")
+
+#(From Marg) now make a new column in the words dataframe. Default it to "no"
+WJEng$WJEng_Score <- 0
+#Then change it to yes if the word is one of the words we care about
+WJEng[WJEng$Response%in%WJEng_Acc,]$WJEng_Score<-1
+#Looks at the words data frame! We identified two words.
+
+write.csv(WJEng, "remove_delayed_answersWJENG.csv")
+WJEng <- read.csv("remove_delayed_answersWJENG.csv") # Pb solved in less than a mn in excel.
+# Let's get an average score per participant.
+WJEng$Avg_WJEng <- mean(WJEng$WJEng_Score %in% WJEng$Participant.Completion.Code)
+WJEng$Avg_WJEng <- ave(WJEng$WJEng_Score, WJEng$Participant.Completion.Code)
+
+Avg_WJEng <- WJEng %>%
+  dplyr::select("Participant.Completion.Code", "Avg_WJEng")
+
+Avg_WJEng$Avg_WJEng <- as.numeric(as.character(Avg_WJEng$Avg_WJEng)) 
+write.csv(Avg_WJEng, "newWJENGscores.csv")
+## SP ##
+WJSp$Avg_WJSp <- ave(WJSp$WJSp_Score, WJSp$Participant.Completion.Code)
+
+Avg_WJSp <- WJSp %>%
+  dplyr::select("Participant.Completion.Code", "Avg_WJSp")
+
+write.csv(Avg_WJSp, "newWJSPscores.csv")
+write.csv(Avg_WJEng, "newWJENGscores.csv")
+WJs <- merge(Avg_WJEng, Avg_WJSp, by='Participant.Completion.Code')
+
+
+options(max.print = 5000)        # Change global options
+
+# Merging LgMix #
+getwd() # Issue merging got solved when saving the rmd file in same folder as csv files.
+
+LgMix_all <- list.files(path = "~/Desktop",     
+                       pattern = "*.csv", full.names = TRUE) %>% 
+  lapply(read_csv) %>%  
+  bind_rows                                                        
+LgMix_all                                                          
+
+write.csv(LgMix_all, "LgMix_full.csv")
+
+# Q 4e of Lg Mix (resp 10) seems to be the more general, i'll keep that one only for now.
+CS <- filter(LgMix, Question.Key=="response-10")
+CS$CS <- varRecode(CS$Response, c("7. Not at all true", "1. Very true", "4. Somewhat true", "2", "3", "5", "6"), c(7, 1, 4, 2, 3, 5, 6))
+CS <- CS %>%
+  dplyr::select("Participant.Completion.Code", "CS")
+
+# Merging Consents #
+
+Consents_all <- list.files(path = "/Volumes/lablab/Anne/Cross Ling Syntactic Priming/Gorilla Data/Consents/",     
+                       pattern = "*.csv", full.names = TRUE) %>% 
+  lapply(read_csv) %>%                                            
+  bind_rows                                                        
+Consents_all                                                          
+
+write.csv(Consents_all, "Consents_full.csv")
+
+
+# Now I need to bring in the columns of interest from all questionnaires and WJ into i.
+
+# I think i should first select which columns are of interest per questionnaire.
+LgMix <- LgMix_all %>%
+  dplyr::select("Participant Completion Code", "Question Key", "Response")
+names(LgMix) <- c("Participant.Completion.Code", "Question.Key", "Response")
+# aaaaaa hasn't done the LgMix.
+
+unique(WJSp$'Participant Completion Code')
+# The missing participant here: "qautnv" NA       "bjahss" is excluded (out of time, sent questionnaires by email). clean out. It's the same one in all questionnaires. Let's remove it.
+
+LeapQ[546:573, 4] = "aaaaaa"
+write.csv(LeapQ, "LeapQ.csv")
+LeapQ <- read.csv("LeapQ.csv")
+table(LeapQ$Event.Index)
+
+THQ[610:636, 4] = "aaaaaa"
+Thq <- dplyr::filter(THQ, Event.Index !="END OF FILE") 
+table(Thq$Event.Index)
+table(THQ$Participant.Completion.Code)
+table(Thq$Participant.Completion.Code)
+write.csv(THQ, "THQ.csv")
+write.csv(Thq, "Thq_2.csv")
+# Note: When opening the written csv files, there are no end of file in the THQ and the row numbers are the same. Remove the end of file clean up, write the csv and reopen them as the same df name. Back in when reading csv.
+# aaaaaa was the only P who did EnB v2, so manually renamed in csv and re-merged.
+
+# Wealth of data in all questionnaires. I'll focus on a few core variables first that will be binary, otherwise I'd need contrasts. 
+# I can look at more details for a different paper, e.g. focused on the THQ.
+# Core variables per questionaire:
+# LeapQ: Exclude by native language first. Then, age, L2 (excl if not Sp), I can later see if Leap Q proficiency correlates with WJ.
+dplyr::filter(LeapQ, Question.Key=="response-33") 
+
+# non-natives of English: qautnv, bjahss, yqobdt, gxtcou, pkxdar, aaaaaa, ybzdzf, jewtsn, nlltxb, udomtb, enlrke.
+# It looks like the data from the questionnaires from participants excluded in i (exp data) are not joined, so I'll exclude the reminder once all is merged.
+
+# Feb. 25, 2021 #
+# Need to add NA for Spanish AoA if it's not the L2 (I don't have that data).
+LeapQ <- read.csv("LEAPQ_full.csv")
+L2 <- dplyr::filter(LeapQ, Question.Key=="response-34") 
+L2<-L2[!(L2$Participant.Completion.Code=="wzkrbz" | L2$Participant.Completion.Code=="emtfnp"| L2$Participant.Completion.Code=="uvdulx"| L2$Participant.Completion.Code=="bjahss"| L2$Participant.Completion.Code=="firyrj"| L2$Participant.Completion.Code=="ebxkct"| L2$Participant.Completion.Code=="qautnv"| L2$Participant.Completion.Code=="yqobdt"| L2$Participant.Completion.Code=="gxtcou"| L2$Participant.Completion.Code=="pkxdar"| L2$Participant.Completion.Code=="aaaaaa"| L2$Participant.Completion.Code=="ybzdzf"| L2$Participant.Completion.Code=="jewtsn"| L2$Participant.Completion.Code=="nlltxb"| L2$Participant.Completion.Code=="udomtb"| L2$Participant.Completion.Code=="enlrke"),]
+L2
+
+L2_notSP <- dplyr::filter(L2, Response=="Punjabi"|Response=="Arabic"|Response=="n/a"|Response==""|Response=="French"|Response=="Italian") 
+L2aoa <- dplyr::filter(LeapQ, Question.Key=="response-24") 
+L2aoa_corrected<-L2aoa[(L2aoa$Participant.Completion.Code=="gkixbx" | L2aoa$Participant.Completion.Code=="xyulwq"| L2aoa$Participant.Completion.Code=="ivywly"| L2aoa$Participant.Completion.Code=="mignur"| L2aoa$Participant.Completion.Code=="ldmwzc"| L2aoa$Participant.Completion.Code=="odcerv"| L2aoa$Participant.Completion.Code=="oplxiq"| L2aoa$Participant.Completion.Code=="uacvdz"| L2aoa$Participant.Completion.Code=="sodnou"),]
+L2aoa_corrected
+
+L2aoa_corrected2 <- L2aoa_corrected[complete.cases(L2aoa_corrected$X),]
+# Make these responses NA.
+L2aoa_corr <- varRecode(L2aoa_corrected2$Response, c("10", "13", "11", "15", "12", "0"), c(-99, -99, -99, -99, -99, -99))
+# Didn't work.
+# Note: Before comma refers to specific rows, after to specific columns.
+# [X, Y]
+LeapQ <- read.csv("LEAPQ_full.csv")
+L2_AoA <- filter(LeapQ, Question.Key=="response-24")
+L2_AoA <- L2_AoA %>%
+  dplyr::select("Participant.Completion.Code", "Response")
+names(L2_AoA) <- c("Participant.Completion.Code", "L2_AoA")
+
+# Need self-rated speaking of leapQ.
+LeapQ <- read.csv("LEAPQ_full.csv")
+SPspeak <- filter(LeapQ, Question.Key=="response-30")
+SPspeak <- SPspeak %>%
+  dplyr::select("Participant.Completion.Code", "Response")
+names(SPspeak) <- c("Participant.Completion.Code", "SP_Spk")
+
+SPspeak <-SPspeak[!(SPspeak$Participant.Completion.Code=="wzkrbz"|
+SPspeak$Participant.Completion.Code=="aaaaaa"|
+SPspeak$Participant.Completion.Code=="asdsfu"|
+  SPspeak$Participant.Completion.Code=="bjahss"|
+  SPspeak$Participant.Completion.Code=="firyrj"| 
+  SPspeak$Participant.Completion.Code=="bsojij"|
+  SPspeak$Participant.Completion.Code=="cakkok"|
+  SPspeak$Participant.Completion.Code=="cvwewy"| 
+  SPspeak$Participant.Completion.Code=="dhcevg"|
+  SPspeak$Participant.Completion.Code=="ebxkct"| 
+SPspeak$Participant.Completion.Code=="eitdcp"|
+  SPspeak$Participant.Completion.Code=="emtfnp" |
+  SPspeak$Participant.Completion.Code=="enlrke"| 
+  SPspeak$Participant.Completion.Code=="firyrj"|
+    SPspeak$Participant.Completion.Code=="gxtcou"|
+    SPspeak$Participant.Completion.Code=="hrfsna"|
+    SPspeak$Participant.Completion.Code=="ignjik"|
+    SPspeak$Participant.Completion.Code=="iwmjvu"|
+   SPspeak$Participant.Completion.Code=="jewtsn"| 
+  SPspeak$Participant.Completion.Code=="jzwnig"|
+  SPspeak$Participant.Completion.Code=="nlltxb "| 
+  SPspeak$Participant.Completion.Code=="nuhxjg"| 
+  SPspeak$Participant.Completion.Code=="ohydll "| 
+  SPspeak$Participant.Completion.Code=="pkxdar"| 
+  SPspeak$Participant.Completion.Code=="pxgmiy"| 
+  SPspeak$Participant.Completion.Code=="qautnv"|
+  SPspeak$Participant.Completion.Code=="rdeojg"| 
+  SPspeak$Participant.Completion.Code=="uacvdz"| 
+  SPspeak$Participant.Completion.Code=="udomtb"|
+  SPspeak$Participant.Completion.Code=="uvdulx "|
+  SPspeak$Participant.Completion.Code=="uyfupm"|
+  SPspeak$Participant.Completion.Code=="vlxeub"|
+  SPspeak$Participant.Completion.Code=="vndkrq"|
+  SPspeak$Participant.Completion.Code=="wcaych"|
+    SPspeak$Participant.Completion.Code=="wwjsyc "|
+    SPspeak$Participant.Completion.Code=="ybzdzf"|
+    SPspeak$Participant.Completion.Code=="yqobdt"),]
+SPspeak
+write.csv(SPspeak, "SP.csv")
+SPspeak <- read.csv("SP.csv")
+
+## Prep demog data for descriptive table ##
+
+Descrp <- D4 %>% dplyr::select("Participant.Completion.Code", "SP_Spk", "L2_AoA", "Age", "Ed", "Avg_WJEng", "Avg_WJSp", "Recruit.x", "CondName")
+Descrp <- unique(Descrp, incomparables = FALSE, MARGIN = 1,
+       fromLast = FALSE)
+write.csv(Descrp, "descriptive_data.csv")
+descrip <- read.csv("descriptive_data.csv")
+varDescribe(D4$Avg_WJSp)
+```
+

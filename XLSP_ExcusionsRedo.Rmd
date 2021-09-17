@@ -1,0 +1,748 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library("dplyr")                                                  # Load dplyr package
+library("plyr")                                                   # Load plyr package
+library("readr")                                                  # Load readr package
+library(openxlsx)
+library(lmSupport)
+WJE <- read.delim("WJE.txt") 
+WJS<- read.xlsx("WJS.xlsx") 
+
+RTsWJE <- filter(WJE, Zone.Type=="response_text_entry")
+varPlot(RTsWJE$Reaction.Time)
+str(RTsWJE)
+RTsWJE$Reaction.Time <- as.numeric(as.character(RTsWJE$Reaction.Time))  # Convert one nominal variable to numeric.
+a<-RTsWJE %>%
+  dplyr::filter(Reaction.Time >= 125000)
+
+# Issue: the RT is for the block of 6 words, so if I divide the number by 6 I get on avg how long they spent per word.
+# I can include everyone except the excl on the exp task and see from that...
+
+# Acc list missed many words for some reason, just did the scoring manually.
+library(xlsx)
+WJS<-read.xlsx("WJS_ManuGraded.xlsx")
+WJE<-read.xlsx("WJE_ManuGraded.xlsx")
+
+WJS$Avg_WJSp <- ave(WJS$WJS_Score, WJS$Participant.Completion.Code)
+
+Avg_WJSp <- WJS %>%
+  dplyr::select("Participant.Completion.Code", "Avg_WJSp")
+
+WJE$Avg_WJE <- ave(WJE$WJE_Score, WJE$Participant.Completion.Code)
+
+Avg_WJE <- WJE %>%
+  dplyr::select("Participant.Completion.Code", "Avg_WJE")
+
+WS <-Avg_WJSp[!(Avg_WJSp$Participant.Completion.Code=="wzkrbz" | Avg_WJSp$Participant.Completion.Code=="emtfnp"| Avg_WJSp$Participant.Completion.Code=="uvdulx"| Avg_WJSp$Participant.Completion.Code=="bjahss"| Avg_WJSp$Participant.Completion.Code=="firyrj"| Avg_WJSp$Participant.Completion.Code=="ebxkct"| Avg_WJSp$Participant.Completion.Code=="qautnv"| Avg_WJSp$Participant.Completion.Code=="yqobdt"| Avg_WJSp$Participant.Completion.Code=="gxtcou"| Avg_WJSp$Participant.Completion.Code=="pkxdar"| Avg_WJSp$Participant.Completion.Code=="aaaaaa"| Avg_WJSp$Participant.Completion.Code=="ybzdzf"| Avg_WJSp$Participant.Completion.Code=="jewtsn"| Avg_WJSp$Participant.Completion.Code=="nlltxb"| Avg_WJSp$Participant.Completion.Code=="udomtb"| Avg_WJSp$Participant.Completion.Code=="enlrke"),]
+WS
+
+d$X = NULL
+d$Avg_WJSp = NULL
+d$Avg_WJEng = NULL
+WE <- unique(WE, incomparables = FALSE, MARGIN = 1,
+       fromLast = FALSE)
+unique(Avg_WJSp$Participant.Completion.Code)
+b <- merge(WE, a, by=c("Participant.Completion.Code"))
+unique(b$Avg_WJE) # It didn't merge "computer" aka blank one "", that person was excluded from the experiment.
+
+# b is new dataset with less exclusions, only the uncodable ones  wzkrbz" "emtfnp" "uvdulx" "bjahss" "" "firyrj" "ebxkct" (7) and the non-English L1s qautnv, yqobdt, gxtcou, pkxdar, aaaaaa, ybzdzf, jewtsn, nlltxb, udomtb, enlrke (10).
+
+# Need to reintroduce the 10s (121 items are 10s, 242 as pairs) now and remove the CSB sentence again.
+write.xlsx(b, "less_excl_df.xlsx")
+b5 <- b4[!(b4$Experiment.ID==27841 & b4$Event.Index==128 | b4$Experiment.ID==27841 & b4$Event.Index==130),] # Removed 34 obs (makes sense that it's more than 20 since there are less excl here).
+write.csv(b2, "less_excl_CS_Bsent_removed.csv")
+unique(b2$Participant.Completion.Code)
+recruit <- read.csv("XLSP_RecruitmentGroup.csv")
+b3 <- merge(recruit, b2, by=c("Participant.Completion.Code"))# nb of obs doesn't match (60 diff). ldbcng and qwkvho missing (64 - why?). Write b3 and add manually. 
+
+write.csv(b3, "without_ldbcng_qwkvho.csv") 
+table(b2$Participant.Completion.Code) # here ldbcng and qwkvho each have 30 items. It's bc they are both CS B and the excluded sentence was back in.
+table(b3$Participant.Completion.Code)
+
+b4<-read.csv("without_ldbcng_qwkvho.csv")
+table(b4$Participant.Completion.Code)
+write.csv(b5, "030321_onlyL1andexcl_excl.csv")
+# Now run the models with b5. Redo the one-way anova for demog.
+
+hist(b5$Avg_WJSp)
+
+LeapQ <- read.csv("LEAPQ_full.csv")
+SPspeak <- filter(LeapQ, Question.Key=="response-30")
+SPspeak <- SPspeak %>%
+  dplyr::select("Participant.Completion.Code", "Response")
+names(SPspeak) <- c("Participant.Completion.Code", "SP_Spk")
+
+SPspeak <-SPspeak[!(SPspeak$Participant.Completion.Code=="wzkrbz" | SPspeak$Participant.Completion.Code=="emtfnp"| SPspeak$Participant.Completion.Code=="uvdulx"| SPspeak$Participant.Completion.Code=="bjahss"| SPspeak$Participant.Completion.Code=="firyrj"| SPspeak$Participant.Completion.Code=="ebxkct"| SPspeak$Participant.Completion.Code=="qautnv"| SPspeak$Participant.Completion.Code=="yqobdt"| SPspeak$Participant.Completion.Code=="gxtcou"| SPspeak$Participant.Completion.Code=="pkxdar"| SPspeak$Participant.Completion.Code=="aaaaaa"| SPspeak$Participant.Completion.Code=="ybzdzf"| SPspeak$Participant.Completion.Code=="jewtsn"| SPspeak$Participant.Completion.Code=="nlltxb"| SPspeak$Participant.Completion.Code=="udomtb"| SPspeak$Participant.Completion.Code=="enlrke"),]
+SPspeak
+write.csv(SPspeak, "SP2.csv")
+# Looking at Sp_Spk, I realized ohydll was missing from b5 so I manually reintegrated it.
+b6<-read.csv("030321_onlyL1andexcl_excl.csv")
+SPspk<-read.csv("SP2.csv")
+
+b7 <- merge(SPspeak, b6, by=c("Participant.Completion.Code"))
+write.csv(b7, "thefinaldf.csv")
+corr.test(b7[, c('SP_Spk','L2_AoA', 'Avg_WJSp')], use='complete')
+str(b7)
+b7$Avg_WJSp <- as.numeric(as.character(b7$Avg_WJSp))  # Convert one nominal variable to numeric.
+# Correlation matrix 
+#         SP_Spk L2_AoA Avg_WJSp
+#SP_Spk     1.00  -0.04     0.60
+#L2_AoA    -0.04   1.00     0.12
+#Avg_WJSp   0.60   0.12     1.00
+#Sample Size 
+#[1] 2720
+#Probability values (Entries above the diagonal are adjusted for multiple tests.) 
+#         SP_Spk L2_AoA Avg_WJSp
+#SP_Spk     0.00   0.04        0
+#L2_AoA     0.04   0.00        0
+#Avg_WJSp   0.00   0.00        0
+
+# Corr between SPspk and WJS was .67 before, now .6. I'll keep SP spk bc I think the WJ is wacky in SP.
+table(b7$Coding)
+
+b7$Reuse <- varRecode(b7$Coding, c("1, 21",
+                                 
+                                   "15, 20", "2, 21","5, 21","6, 21","7, 21",
+                                   "1", 
+                                   "2", 
+                                   "5", 
+                                   "6", 
+                                   "16", 
+                                   "18",
+                                   "1, 20", 
+                                   "6, 20", 
+                                   "5, 20", 
+                                   "2, 20", 
+                                   "14, 1", 
+                                   "15, 1", 
+                                   "4", 
+                                   "4, 23", 
+                                   "7, 23", 
+                                   "13", 
+                                   "17",
+                                   "5, 23",
+                                   "19", 
+                                   "8, 23",
+                                   "11",
+                                   "15, 4",
+                                   "15, 13",
+                                   "3",
+                                   "8",
+                                   "12",
+                                   "3, 23",
+                                   "7",
+                                   "13, 20",
+                                   "11, 23",
+                                   "13, 23",
+                                   "14, 8", "11, 22","4, 22", "44, 22", "5,22", "6, 23", "8, 22"), c(1, 1,1,1, 1, 1, 1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0, 0, 0, 0, 0, 0))
+b7$Condition <- varRecode(b7$Experiment.ID, c(27836, 27841, 23289, 27835, 27842, 27843), c(1, 1, 2, 2, 3, 3)) #1=CS, 2=EN, 3=TR.
+unique(b7$Condition)
+write.csv(b7, "correct_Exp.ID_ohydll.csv")
+b7<-read.csv("correct_Exp.ID_ohydll.csv")
+unique(b7$Condition)
+
+b7$CondName <- varRecode(b7$Experiment.ID, c(27836, 27841, 23289, 27835, 27842, 27843), c("CS", "CS", "ENG", "ENG", "TR", "TR")) #1=CS, 2=EN, 3=TR.
+
+b7$CondName <- as.factor(as.character(b7$CondName)) 
+
+levels(b7$CondName)
+contrasts(b7$CondName) = varContrasts(b7$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+
+b7$EdC <- b7$Ed - mean(na.omit(b7$Ed, b7$Participant.Completion.Code))
+b7$AgeC <- b7$Age - mean(na.omit(b7$Age, b7$Participant.Completion.Code))
+b7$L2_AoAC <- b7$L2_AoA - mean(na.omit(b7$L2_AoA, b7$Participant.Completion.Code))
+b7$Avg_WJSpC <- b7$Avg_WJSp - mean(na.omit(b7$Avg_WJSp, b7$Participant.Completion.Code))
+b7$Avg_WJEC <- b7$Avg_WJE - mean(na.omit(b7$Avg_WJE, b7$Participant.Completion.Code))
+b7$SP_SpkC <- b7$SP_Spk - mean(na.omit(b7$SP_Spk, b7$Participant.Completion.Code))
+write.csv("b7_models_ready.csv")
+
+control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000))
+contrasts(b7$CondName) = varContrasts(b7$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+
+m1 <- glmer(Reuse ~ (CondName * SP_SpkC + EdC + AgeC + Avg_WJEC + (1 + CondName * SP_SpkC|Event.Index)), family = binomial, data=b7, control=control)
+summary(m1)
+Anova(m1, type=3)
+
+library(ggplot2)
+library(graphics)
+b7$condF <- as.factor(varRecode(b7$CondName, c("ENG", "CS", "TR"), c('English (Baseline)','Codeswitched', 'Translation')))
+
+m1_graph <- glm(Reuse ~ condF, family = binomial, data=b7)
+modelSummary(m1_graph)
+
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'))
+
+pY <- predict(m1_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(condF,Reuse))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  geom_hline(yintercept=.5, linetype="dashed", color = "orange", size=.25) +
+  coord_cartesian(xlim = c(.5, 3.5),ylim = c(0, 1), expand = F) +
+  theme_bw()
+plotty
+
+# Pretty much same results.
+
+#### Trimming RTs at 3 SDs ####
+# Looking at the RT column.
+plot(b7$Reaction.Time)
+varDescribe(b7$Reaction.Time)
+# There's one clear outlier but that's about it.
+
+# No need to log transform because that's based on outliers in whole lm models, which here is neither a model (just RTs), nor lm.
+# Based on Phillips (2018) p.86, no need to remove short RTs because the experiment was self-paced. From Duyck & Warlop (2009), trim >3SDs.
+
+#d_clean <-b7[b7$Reaction.Time>3500 & b7$Reaction.Time<3500,]
+#varDescribe(d_clean$Reaction.Time)
+#varPlot(d_clean$Reaction.Time)
+
+# clean and trim RTs for correct accuracies
+# if the RawRT value is negative, it should be counted as an outlier 
+# initialize outlier variable
+b7$Outlier <- 0
+
+# calculate subject-specific standard deviation points to establish outlier criteria
+library(plyr)
+?ddply
+data.out <-ddply(subset(b7, Outlier == 0), .(Participant.Completion.Code), transform, 
+                 Pos_outlier = mean(Reaction.Time) + (sd(Reaction.Time)*3), 
+                 Neg_outlier = mean(Reaction.Time) - (sd(Reaction.Time)*3))
+
+data.out$Outlier_P <- ifelse(data.out$Reaction.Time > data.out$Pos_outlier, 1, 0)
+data.out$Outlier_N <- ifelse(data.out$Reaction.Time < data.out$Neg_outlier, 1, 0)
+
+sum(data.out$Outlier_P) ## cases excluded #47
+sum(data.out$Outlier_N) ## 0
+
+d_out <- data.out[data.out$Outlier_P==0,] # d_out has the 47 items from exp data removed.
+
+## Same for WJs ##
+# WJE
+WJE <- read.csv("WJE_RTs.csv")
+WJS <- read.csv("WJS_RTs.csv")
+
+library(plyr)
+library(lmSupport)
+varDescribe(WJE.out$Reaction.Time)
+hist(WJE.out$Reaction.Time)
+ 
+WJE$Pos_outlier = mean(WJE$Reaction.Time) + (sd(WJE$Reaction.Time)*2.5)
+
+WJE$Outlier_P <- ifelse(WJE$Reaction.Time > WJE$Pos_outlier, 1, 0)
+
+sum(WJE$Outlier_P) ## cases excluded #105
+
+WJE_out <- WJE[WJE$Outlier_P==0,]
+
+# Need to merge WJE_out with the scores manually graded in another spreadsheet.
+
+WJE_score <- read.csv("WJE_ManuGraded.csv")
+
+mergedWJEs <- WJE_out %>% right_join(WJE_score, by=c("Participant.Completion.Code","Zone.Name"))
+
+mergedWJEs$Avg_WJE <- ave(mergedWJEs$WJE_Score, mergedWJEs$Participant.Completion.Code)
+
+WJEngScore <- mergedWJEs %>%
+  dplyr::select("Participant.Completion.Code", "Avg_WJE")
+
+mergedWJEs$Avg_WJE <- as.numeric(as.character(mergedWJEs$Avg_WJE))  
+WJEngScore <- unique(WJEngScore, incomparables = FALSE, MARGIN = 1,
+       fromLast = FALSE)
+
+d_out$Avg_WJSp = NULL
+
+b8 <- merge(d_out, WJEngScore, by='Participant.Completion.Code')
+
+# WJSp
+
+WJS$Pos_outlier = mean(WJS$Reaction.Time) + (sd(WJS$Reaction.Time)*2.5)
+
+WJS$Outlier_P <- ifelse(WJS$Reaction.Time > WJS$Pos_outlier, 1, 0)
+
+sum(WJS$Outlier_P) ## cases excluded #93
+
+WJS_out <- WJS[WJS$Outlier_P==0,]
+
+WJS_score <- read.csv("WJS_ManuGraded.csv")
+
+mergedWJSs <- WJS_out %>% right_join(WJS_score, by=c("Participant.Completion.Code","Zone.Name"))
+
+mergedWJSs$Avg_WJS <- ave(mergedWJSs$WJS_Score, mergedWJSs$Participant.Completion.Code)
+
+WJSpScore <- mergedWJSs %>%
+  dplyr::select("Participant.Completion.Code", "Avg_WJS")
+
+mergedWJSs$Avg_WJS <- as.numeric(as.character(mergedWJSs$Avg_WJS))  
+WJSpScore <- unique(WJSpScore, incomparables = FALSE, MARGIN = 1,
+       fromLast = FALSE)
+
+d_out$Avg_WJSp = NULL
+
+b9 <- merge(b8, WJSpScore, by='Participant.Completion.Code')
+b9$X = NULL
+write.csv(b9, "final_exp&WJ_excl.csv")
+b9 = read.csv("final_exp&WJ_excl.csv")
+library(psych)
+corr.test(b9[, c('SP_Spk','L2_AoA', 'Avg_WJS')], use='complete') # Sanity check to be sure the avgs are correct.
+hist(b9$Avg_WJS) # Sanity check to be sure the avgs are correct.
+hist(b7$Avg_WJS) # Sanity check to be sure the avgs are correct.
+
+# Now I have my final df. Need to deal with the A/P to see what's driving the translation effect, and 
+# Re-run analyses just with the L2 Spanish.
+
+# L2 SP - L2 Type = 1. The sims are = 2.
+
+b9_L2SP <- filter(b9, L2Type==1) # Use this df to re-run analyses.
+
+table(b9$L2Type) # Matches, lovely.
+
+# Models on b9 (all) first.
+library(car)
+?Anova
+b9$Condition <- varRecode(b9$Experiment.ID, c(27836, 27841, 23289, 27835, 27842, 27843), c(1, 1, 2, 2, 3, 3)) #1=CS, 2=EN, 3=TR.
+unique(b9$Condition)
+
+b9$CondName <- varRecode(b9$Experiment.ID, c(27836, 27841, 23289, 27835, 27842, 27843), c("CS", "CS", "ENG", "ENG", "TR", "TR")) #1=CS, 2=EN, 3=TR.
+
+b9$CondName <- as.factor(as.character(b9$CondName)) 
+
+levels(b9$CondName)
+
+b9$EdC <- b9$Ed - mean(na.omit(b9$Ed, b9$Participant.Completion.Code))
+b9$AgeC <- b9$Age - mean(na.omit(b9$Age, b9$Participant.Completion.Code))
+b9$L2_AoAC <- b9$L2_AoA - mean(na.omit(b9$L2_AoA, b9$Participant.Completion.Code))
+b9$Avg_WJSc <- b9$Avg_WJS - mean(na.omit(b9$Avg_WJS, b9$Participant.Completion.Code))
+b9$Avg_WJEc <- b9$Avg_WJE - mean(na.omit(b9$Avg_WJE, b9$Participant.Completion.Code))
+b9$SP_SpkC <- b9$SP_Spk - mean(na.omit(b9$SP_Spk, b9$Participant.Completion.Code))
+write.csv(b9, "b9_models_ready.csv")
+control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000))
+contrasts(b9$CondName) = varContrasts(b9$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+
+m1 <- glmer(Reuse ~ (CondName * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index)), family = binomial, data=b9, control=control)
+summary(m1)
+Anova(m1, type=3)
+
+library(ggplot2)
+library(graphics)
+b9$condF <- as.factor(varRecode(b9$CondName, c("ENG", "CS", "TR"), c('English (Baseline)','Codeswitched', 'Translation')))
+
+m1_graph <- glm(Reuse ~ condF, family = binomial, data=b9)
+modelSummary(m1_graph)
+
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'))
+
+pY <- predict(m1_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(condF,Reuse))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  coord_cartesian(xlim = c(.5, 3.5),ylim = c(0, 1), expand = F) +
+  theme_bw()
+plotty
+# Running on L2 SP only
+
+b9_L2SP <- filter(b9, L2Type==1) # Re-running so it has the centered variables.
+
+contrasts(b9_L2SP$CondName) = varContrasts(b9_L2SP$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+
+m2 <- glmer(Reuse ~ (CondName * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index)), family = binomial, data=b9_L2SP, control=control)
+summary(m2)
+Anova(m2, type=3)
+
+library(ggplot2)
+library(graphics)
+b9_L2SP$condF <- as.factor(varRecode(b9_L2SP$CondName, c("ENG", "CS", "TR"), c('English (Baseline)','Codeswitched', 'Translation')))
+
+m2_graph <- glm(Reuse ~ condF, family = binomial, data=b9_L2SP)
+modelSummary(m2_graph)
+
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'))
+
+pY <- predict(m2_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(condF,Reuse))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  coord_cartesian(xlim = c(.5, 3.5),ylim = c(0, 1), expand = F) +
+  theme_bw()
+plotty
+
+# Active dataset
+Passive = filter(b9, Event.Index=="8"&Experiment.ID==27836|Event.Index=="10"&Experiment.ID==27836|Event.Index=="24"&Experiment.ID==27836|Event.Index=="26"&Experiment.ID==27836|Event.Index=="56"&Experiment.ID==27836|Event.Index=="58"&Experiment.ID==27836|Event.Index=="64"&Experiment.ID==27836|Event.Index=="66"&Experiment.ID==27836|Event.Index=="72"&Experiment.ID==27836|Event.Index=="74"&Experiment.ID==27836|Event.Index=="80"&Experiment.ID==27836|Event.Index=="82"&Experiment.ID==27836|Event.Index=="120"&Experiment.ID==27836|Event.Index=="122"&Experiment.ID==27836|Event.Index=="128"&Experiment.ID==27836|Event.Index=="130"&Experiment.ID==27836|
+                   Event.Index=="8"&Experiment.ID==23289|Event.Index=="10"&Experiment.ID==23289|Event.Index=="24"&Experiment.ID==23289|Event.Index=="26"&Experiment.ID==23289|Event.Index=="56"&Experiment.ID==23289|Event.Index=="58"&Experiment.ID==23289|Event.Index=="64"&Experiment.ID==23289|Event.Index=="66"&Experiment.ID==23289|Event.Index=="72"&Experiment.ID==23289|Event.Index=="74"&Experiment.ID==23289|Event.Index=="80"&Experiment.ID==23289|Event.Index=="82"&Experiment.ID==23289|Event.Index=="120"&Experiment.ID==23289|Event.Index=="122"&Experiment.ID==23289|Event.Index=="128"&Experiment.ID==23289|Event.Index=="130"&Experiment.ID==23289|
+                   Event.Index=="8"&Experiment.ID==27842|Event.Index=="10"&Experiment.ID==27842|Event.Index=="24"&Experiment.ID==27842|Event.Index=="26"&Experiment.ID==27842|Event.Index=="56"&Experiment.ID==27842|Event.Index=="58"&Experiment.ID==27842|Event.Index=="64"&Experiment.ID==27842|Event.Index=="66"&Experiment.ID==27842|Event.Index=="72"&Experiment.ID==27842|Event.Index=="74"&Experiment.ID==27842|Event.Index=="80"&Experiment.ID==27842|Event.Index=="82"&Experiment.ID==27842|Event.Index=="120"&Experiment.ID==27842|Event.Index=="122"&Experiment.ID==27842|Event.Index=="128"&Experiment.ID==27842|Event.Index=="130"&Experiment.ID==27842|
+                   Event.Index=="16"&Experiment.ID==27841|Event.Index=="18"&Experiment.ID==27841|Event.Index=="32"&Experiment.ID==27841|Event.Index=="34"&Experiment.ID==27841|Event.Index=="40"&Experiment.ID==27841|Event.Index=="42"&Experiment.ID==27841|Event.Index=="48"&Experiment.ID==27841|Event.Index=="50"&Experiment.ID==27841|Event.Index=="88"&Experiment.ID==27841|Event.Index=="90"&Experiment.ID==27841|Event.Index=="96"&Experiment.ID==27841|Event.Index=="98"&Experiment.ID==27841|Event.Index=="104"&Experiment.ID==27841|Event.Index=="106"&Experiment.ID==27841|Event.Index=="112"&Experiment.ID==27841|Event.Index=="114"&Experiment.ID==27841|
+                   Event.Index=="16"&Experiment.ID==27835|Event.Index=="18"&Experiment.ID==27835|Event.Index=="32"&Experiment.ID==27835|Event.Index=="34"&Experiment.ID==27835|Event.Index=="40"&Experiment.ID==27835|Event.Index=="42"&Experiment.ID==27835|Event.Index=="48"&Experiment.ID==27835|Event.Index=="50"&Experiment.ID==27835|Event.Index=="88"&Experiment.ID==27835|Event.Index=="90"&Experiment.ID==27835|Event.Index=="96"&Experiment.ID==27835|Event.Index=="98"&Experiment.ID==27835|Event.Index=="104"&Experiment.ID==27835|Event.Index=="106"&Experiment.ID==27835|Event.Index=="112"&Experiment.ID==27835|Event.Index=="114"&Experiment.ID==27835|
+                   Event.Index=="16"&Experiment.ID==27843|Event.Index=="18"&Experiment.ID==27843|Event.Index=="32"&Experiment.ID==27843|Event.Index=="34"&Experiment.ID==27843|Event.Index=="40"&Experiment.ID==27843|Event.Index=="42"&Experiment.ID==27843|Event.Index=="48"&Experiment.ID==27843|Event.Index=="50"&Experiment.ID==27843|Event.Index=="88"&Experiment.ID==27843|Event.Index=="90"&Experiment.ID==27843|Event.Index=="96"&Experiment.ID==27843|Event.Index=="98"&Experiment.ID==27843|Event.Index=="104"&Experiment.ID==27843|Event.Index=="106"&Experiment.ID==27843|Event.Index=="112"&Experiment.ID==27843|Event.Index=="114"&Experiment.ID==27843)
+
+Active = filter(b9, Event.Index=="8"&Experiment.ID==27841|Event.Index=="10"&Experiment.ID==27841|Event.Index=="24"&Experiment.ID==27841|Event.Index=="26"&Experiment.ID==27841|Event.Index=="56"&Experiment.ID==27841|Event.Index=="58"&Experiment.ID==27841|Event.Index=="64"&Experiment.ID==27841|Event.Index=="66"&Experiment.ID==27841|Event.Index=="72"&Experiment.ID==27841|Event.Index=="74"&Experiment.ID==27841|Event.Index=="80"&Experiment.ID==27841|Event.Index=="82"&Experiment.ID==27841|Event.Index=="120"&Experiment.ID==27841|Event.Index=="122"&Experiment.ID==27841|Event.Index=="128"&Experiment.ID==27841|Event.Index=="130"&Experiment.ID==27841|
+                   Event.Index=="8"&Experiment.ID==27835|Event.Index=="10"&Experiment.ID==27835|Event.Index=="24"&Experiment.ID==27835|Event.Index=="26"&Experiment.ID==27835|Event.Index=="56"&Experiment.ID==27835|Event.Index=="58"&Experiment.ID==27835|Event.Index=="64"&Experiment.ID==27835|Event.Index=="66"&Experiment.ID==27835|Event.Index=="72"&Experiment.ID==27835|Event.Index=="74"&Experiment.ID==27835|Event.Index=="80"&Experiment.ID==27835|Event.Index=="82"&Experiment.ID==27835|Event.Index=="120"&Experiment.ID==27835|Event.Index=="122"&Experiment.ID==27835|Event.Index=="128"&Experiment.ID==27835|Event.Index=="130"&Experiment.ID==27835|
+                   Event.Index=="8"&Experiment.ID==27843|Event.Index=="10"&Experiment.ID==27843|Event.Index=="24"&Experiment.ID==27843|Event.Index=="26"&Experiment.ID==27843|Event.Index=="56"&Experiment.ID==27843|Event.Index=="58"&Experiment.ID==27843|Event.Index=="64"&Experiment.ID==27843|Event.Index=="66"&Experiment.ID==27843|Event.Index=="72"&Experiment.ID==27843|Event.Index=="74"&Experiment.ID==27843|Event.Index=="80"&Experiment.ID==27843|Event.Index=="82"&Experiment.ID==27843|Event.Index=="120"&Experiment.ID==27843|Event.Index=="122"&Experiment.ID==27843|Event.Index=="128"&Experiment.ID==27843|Event.Index=="130"&Experiment.ID==27843|
+                   Event.Index=="16"&Experiment.ID==27836|Event.Index=="18"&Experiment.ID==27836|Event.Index=="32"&Experiment.ID==27836|Event.Index=="34"&Experiment.ID==27836|Event.Index=="40"&Experiment.ID==27836|Event.Index=="42"&Experiment.ID==27836|Event.Index=="48"&Experiment.ID==27836|Event.Index=="50"&Experiment.ID==27836|Event.Index=="88"&Experiment.ID==27836|Event.Index=="90"&Experiment.ID==27836|Event.Index=="96"&Experiment.ID==27836|Event.Index=="98"&Experiment.ID==27836|Event.Index=="104"&Experiment.ID==27836|Event.Index=="106"&Experiment.ID==27836|Event.Index=="112"&Experiment.ID==27836|Event.Index=="114"&Experiment.ID==27836|
+                   Event.Index=="16"&Experiment.ID==23289|Event.Index=="18"&Experiment.ID==23289|Event.Index=="32"&Experiment.ID==23289|Event.Index=="34"&Experiment.ID==23289|Event.Index=="40"&Experiment.ID==23289|Event.Index=="42"&Experiment.ID==23289|Event.Index=="48"&Experiment.ID==23289|Event.Index=="50"&Experiment.ID==23289|Event.Index=="88"&Experiment.ID==23289|Event.Index=="90"&Experiment.ID==23289|Event.Index=="96"&Experiment.ID==23289|Event.Index=="98"&Experiment.ID==23289|Event.Index=="104"&Experiment.ID==23289|Event.Index=="106"&Experiment.ID==23289|Event.Index=="112"&Experiment.ID==23289|Event.Index=="114"&Experiment.ID==23289|
+                   Event.Index=="16"&Experiment.ID==27842|Event.Index=="18"&Experiment.ID==27842|Event.Index=="32"&Experiment.ID==27842|Event.Index=="34"&Experiment.ID==27842|Event.Index=="40"&Experiment.ID==27842|Event.Index=="42"&Experiment.ID==27842|Event.Index=="48"&Experiment.ID==27842|Event.Index=="50"&Experiment.ID==27842|Event.Index=="88"&Experiment.ID==27842|Event.Index=="90"&Experiment.ID==27842|Event.Index=="96"&Experiment.ID==27842|Event.Index=="98"&Experiment.ID==27842|Event.Index=="104"&Experiment.ID==27842|Event.Index=="106"&Experiment.ID==27842|Event.Index=="112"&Experiment.ID==27842|Event.Index=="114"&Experiment.ID==27842)
+
+# Nb add up, just need to add the 28 from ohydll across both sheets.
+write.csv(Active, "active.csv")
+write.csv(Passive, "passive.csv")
+# Done
+active = read.csv("active.csv")
+passive = read.csv("passive.csv") # matches
+
+passive$CondName <- as.factor(as.character(passive$CondName)) 
+contrasts(passive$CondName) = varContrasts(passive$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+
+m4 <- glmer(Reuse ~ (CondName * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index)), family = binomial, data=passive, control=control)
+summary(m4)
+Anova(m4, type=3)
+
+library(ggplot2)
+library(graphics)
+passive$condF <- as.factor(varRecode(passive$CondName, c("ENG", "CS", "TR"), c('English (Baseline)','Codeswitched', 'Translation')))
+
+m4_graph <- glm(Reuse ~ condF, family = binomial, data=passive)
+modelSummary(m4_graph)
+
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'))
+
+pY <- predict(m4_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(condF,Reuse))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  coord_cartesian(xlim = c(.5, 3.5),ylim = c(0, 1), expand = F) +
+  theme_bw()
+plotty
+
+# Run on b9_L2SP as well. Done
+# On m4, CS and ENG look very similar, but ENG vs TR is *** and CS vs TR only *. Age is *. Let's run it without age as covar to confirm age is driving that difference.
+
+m4 <- glmer(Reuse ~ (CondName * SP_SpkC + EdC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index)), family = binomial, data=passive, control=control)
+summary(m4)
+Anova(m4, type=3)
+
+# Rather I would have to learn how to put covariates in graph. Let's try.
+
+passive$condF <- as.factor(varRecode(passive$CondName, c("ENG", "CS", "TR"), c('English (Baseline)','Codeswitched', 'Translation')))
+
+m4_graph <- glm(Reuse ~ (condF * SP_Spk + Ed + Avg_WJE), family = binomial, data=passive)
+modelSummary(m4_graph)
+
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'), 
+                 SP_Spk = seq(min(passive$SP_Spk), max(passive$SP_Spk), length = nrow(passive)),
+                 Ed = mean(passive$Ed),
+                 Avg_WJE = mean(passive$Avg_WJE))   
+
+pY <- predict(m4_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(condF,Reuse))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  theme_bw()
+plotty
+
+# Looked with the filter function in each active and passive spreadsheet the occurence of Coding 21 (primed by the prime only, not one's own translation), and 22 (self-primed only by translation, not prime).
+
+# Active: 9 occurrences of 21. 0 occurrences of 22.
+# Passive: 6 of 21, a whopping 35 of 22s, mostly as passive to active (4).
+## So ppl self-primed themselves only when the prime was passive, and they translated it into an active, primed themselves into an active. 
+
+# From Hartsuiker et al (2004), 45% productions were A, 35% P and 19% other (I guess 1% was excl). This is the only point of compariso I have so far.
+# In here, A are # 1, 4, 5, 8 and P are 2, 3, 6, 7 
+# o	Whether the voice is maintained in a correct sentence (1-4),
+#	1) active (prime) – active (production)
+#	2) passive – passive
+#	3) active – passive
+#	4) passive - active
+#	…or an incorrect sentence (5-8). 
+#	5) active (prime) – active (production)
+#	6) passive – passive
+#	7) active – passive
+#	8) passive - active
+
+# 155 (9.95%) 2, 6 in passive vs 506 4 and 8s (32.48% of active prod within passive). Changed to active about 4/5 times.
+# 648 (42.49%) 1 & 5 in active and 34 (2.23%) 3 & 7. So about 12 % passives and 75% actives, doesn't match Hartsuiker.
+
+## I want to add a Voice variable to get an idea of Reuse by Voice and Condition, as in HW22. I can add it to each passive and active sheet and then merge.
+
+active$Voice <- .5
+passive$Voice <- -.5   
+
+b10 <- rbind(active, passive) # Yes.
+write.csv(b10, "b10.csv")
+
+b10$condF <- as.factor(varRecode(b10$CondName, c("ENG", "CS", "TR"), c('English (Baseline)','Codeswitched', 'Translation')))
+b10$VoiceF <- as.factor(varRecode(b10$Voice, c(-.5, .5), c("Passive", "Active")))
+
+m5_graph <- glm(Reuse ~ (condF * VoiceF), family = binomial, data=b10)
+# When it's a factor with >2 levels, R automatically uses dummy-coding.
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'), 
+                 VoiceF = c("Passive", "Active"))   
+
+pY <- predict(m5_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+library(ggplot2)
+plotty = ggplot(pY,aes(condF,y=Reuse, fill=condF))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  facet_wrap(~VoiceF)+
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  theme_bw()+
+  theme(legend.position="none")
+plotty
+
+library(car)
+control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000))
+b10$CondName <- as.factor(as.character(b10$CondName)) 
+b10$VoiceF <- as.factor(varRecode(b10$Voice, c(-.5, .5), c("Passive", "Active")))
+
+contrasts(b10$CondName) = varContrasts(b10$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 2)
+m5 <- glmer(Reuse ~ (CondName * VoiceF * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index) + (1+Voice|Participant.Completion.Code)), family = binomial, data=b10, control=control)
+summary(m5)
+Anova(m5, type=3)
+table(b10$SP_Spk)
+m6_graph <- glm(Reuse ~ (condF * VoiceF * SP_Spk), family = binomial, data=b10)
+# Tried to graph this but no point since NS. Could have divided SpSpk into Hi and Lo.
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'), 
+                 VoiceF = c("Active", "Passive"),
+                 SP_Spk = seq(min(b10$SP_Spk), max(b10$SP_Spk)))
+
+pY <- predict(m6_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(x=SP_Spk, y=Reuse, color=VoiceF))+
+  facet_wrap(~condF) +
+  scale_x_continuous("Spanish Speaking Proficiency") +  
+  scale_y_continuous("Reuse", breaks = seq(20, 100, by = 10), limits = c(20, 100)) +
+  scale_color_discrete(name = "Voice") +  
+  theme_bw(base_size = 14) +                                   
+  theme(legend.position = c(1, 0.5),                       
+        legend.background = element_blank())
+plotty
+
+# Trying stacked columns. 
+a <- data_frame(
+  Voice = c(-.5, .5),
+  English = c(, 504),
+  Codeswitched = c(130293, 65282, 25484, 81216),
+  Translation = c(2625, 1093, 681, 1802)
+) %>%
+  gather(variable, value, -category) %>%   # make tidy
+  group_by(variable) %>%
+  mutate(weight = value / sum(value)) 
+ggplot(b10, aes(x = condF, weight = weight * 100, fill = category)) +
+  geom_bar()
+# Also run with just the L2 SP.
+library(dplyr)
+b10_L2SP <- filter(b10, L2Type==1)
+write.csv(b10_L2SP, "b10_L2SP.csv")
+b10_L2SP$CondName <- as.factor(as.character(b10_L2SP$CondName)) 
+contrasts(b10_L2SP$CondName) = varContrasts(b10_L2SP$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+m6 <- glmer(Reuse ~ (CondName * Voice * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC||Event.Index) + (1+Voice||Participant.Completion.Code)), family = binomial, data=b10_L2SP, control=control)
+summary(m6)
+Anova(m6, type=3)
+
+m6_graph <- glm(Reuse ~ (condF * VoiceF), family = binomial, data=b10_L2SP)
+# When it's a factor with >2 levels, R automatically uses dummy-coding.
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'), 
+                 VoiceF = c("Passive", "Active"))   
+
+pY <- predict(m6_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+library(ggplot2)
+plotty = ggplot(pY,aes(x=condF,y=Reuse, fill=condF))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  facet_wrap(~VoiceF)+
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  theme_bw()+
+  theme(legend.position="none")
+plotty
+
+unique(b10$Participant.Completion.Code)
+
+# Replace asdfsu age from 16 to 18 (x-checked the leap-q 032421).
+
+# 03/25/21 
+# Select the L1 ENG L2 SP only. I removed the previously excluded (didn't do talk properly & L1 SP).
+
+b10_L2SPonly <- filter(b10, Participant.Completion.Code=="pogwpq"|
+Participant.Completion.Code=="cjquhi"|
+Participant.Completion.Code=="owdhel"|
+Participant.Completion.Code=="gwdpqe"|
+Participant.Completion.Code=="qgnedi"|
+Participant.Completion.Code=="phfbwr"|
+Participant.Completion.Code=="zuvcgw"|
+Participant.Completion.Code=="albjfi"|
+Participant.Completion.Code=="foaqpg"|
+Participant.Completion.Code=="bepqsc"|
+Participant.Completion.Code=="zfyzrd"|
+Participant.Completion.Code=="tgngkl"|
+Participant.Completion.Code=="qlwteb"|
+Participant.Completion.Code=="uyfupm"|
+Participant.Completion.Code=="lrhygu"|
+Participant.Completion.Code=="wainyn"|
+Participant.Completion.Code=="rdeojg"|
+Participant.Completion.Code=="rgreqq"|
+Participant.Completion.Code=="qiqkql"|
+Participant.Completion.Code=="ufveku"|
+Participant.Completion.Code=="mnyabp"|
+Participant.Completion.Code=="gbpxvr"|
+Participant.Completion.Code=="zqsjxe"|
+Participant.Completion.Code=="yueede"|
+Participant.Completion.Code=="xkslid"|
+Participant.Completion.Code=="wfoylw"|
+Participant.Completion.Code=="asdsfu"|
+Participant.Completion.Code=="njquux"|
+Participant.Completion.Code=="ohydll"|
+Participant.Completion.Code=="vlxeub"|
+Participant.Completion.Code=="eitdcp"|
+Participant.Completion.Code=="hxavlj"|
+Participant.Completion.Code=="mmoxsj"|
+Participant.Completion.Code=="liexty"|
+Participant.Completion.Code=="vndkrq"|
+Participant.Completion.Code=="nuhxjg"|
+Participant.Completion.Code=="eusgms"|
+Participant.Completion.Code=="ldbcng"|
+Participant.Completion.Code=="eevhhw"|
+Participant.Completion.Code=="jzwnig"|
+Participant.Completion.Code=="cgxgjl"|
+Participant.Completion.Code=="pkovsh"|
+Participant.Completion.Code=="blpnpv"|
+Participant.Completion.Code=="iwmjvu"|
+Participant.Completion.Code=="bdfiir"|
+Participant.Completion.Code=="xutelm"|
+Participant.Completion.Code=="ibqzvh"|
+Participant.Completion.Code=="fmfhcy"|
+Participant.Completion.Code=="weytof"|
+Participant.Completion.Code=="fpcmed"|
+Participant.Completion.Code=="yiuyta"|
+Participant.Completion.Code=="casder"|
+Participant.Completion.Code=="kgghxq"|
+Participant.Completion.Code=="hlzbtp"|
+Participant.Completion.Code=="apyxvx"|
+Participant.Completion.Code=="ignjik"|
+Participant.Completion.Code=="mlmroy")
+
+b10_L2SPonly$CondName <- as.factor(as.character(b10_L2SPonly$CondName)) 
+contrasts(b10_L2SPonly$CondName) = varContrasts(b10_L2SPonly$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+m7 <- glmer(Reuse ~ (CondName * Voice * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC||Event.Index) + (1+Voice||Participant.Completion.Code)), family = binomial, data=b10_L2SPonly, control=control)
+summary(m7)
+Anova(m7, type=3)
+
+# I don't think I can plot this because Reuse is binary, so sp spk points won't be able to match the y scale.
+## 4 Ps with HL not removed: 
+#gkixbx
+#odcerv
+#wfoylw
+#zotlqp
+
+read.csv("b9_models_ready.csv")
+unique(b10_L2SPonly$Participant.Completion.Code)
+b10_L2SPonly$X=NULL
+write.csv(b10_L2SPonly, "b10_L2SPonly.csv")
+getwd()
+
+b10_lessHL = read.csv("b10_lessHL.csv")
+b10_L2SP_lessHL = read.csv("b10_L2SP_lessHL.csv")
+b10_L2SPonly_lessHL = read.csv("b10_L2SPonly_lessHL.csv")
+## m5
+b10_lessHL$condF <- as.factor(varRecode(b10_lessHL$CondName, c("ENG", "CS", "TR"), c('English (Baseline)','Codeswitched', 'Translation')))
+b10_lessHL$VoiceF <- as.factor(varRecode(b10_lessHL$Voice, c(-.5, .5), c("Passive", "Active")))
+b10_lessHL$CondName <- as.factor(as.character(b10_lessHL$CondName)) 
+contrasts(b10_lessHL$CondName) = varContrasts(b10_lessHL$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 2)
+contrasts(b10_lessHL$CondName) = varContrasts(b10_lessHL$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+m5HL <- glmer(Reuse ~ (CondName * Voice * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index) + (1+Voice|Participant.Completion.Code)), family = binomial, data=b10_lessHL, control=control)
+summary(m5HL)
+Anova(m5HL, type=3)
+
+## m6
+b10_L2SP_lessHL$CondName <- as.factor(as.character(b10_L2SP_lessHL$CondName)) 
+contrasts(b10_L2SP_lessHL$CondName) = varContrasts(b10_L2SP_lessHL$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+m6HL <- glmer(Reuse ~ (CondName * Voice * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC||Event.Index) + (1+Voice||Participant.Completion.Code)), family = binomial, data=b10_L2SP_lessHL, control=control)
+summary(m6HL)
+Anova(m6HL, type=3)
+
+# m7
+b10_L2SPonly_lessHL$CondName <- as.factor(as.character(b10_L2SPonly_lessHL$CondName)) 
+
+b10_L2SPonly_lessHL$CondName <- as.factor(as.character(b10_L2SPonly_lessHL$CondName)) 
+contrasts(b10_L2SPonly_lessHL$CondName) = varContrasts(b10_L2SPonly_lessHL$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 3)
+m7HL <- glmer(Reuse ~ (CondName * Voice * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC||Event.Index) + (1+Voice||Participant.Completion.Code)), family = binomial, data=b10_L2SPonly_lessHL, control=control)
+summary(m7HL)
+Anova(m7HL, type=3)
+
+m7_graph <- glm(Reuse ~ (condF * VoiceF), family = binomial, data=b10_L2SPonly_lessHL)
+# When it's a factor with >2 levels, R automatically uses dummy-coding.
+pX = expand.grid(condF = c('English (Baseline)','Codeswitched', 'Translation'), 
+                 VoiceF = c("Passive", "Active"))   
+
+pY <- predict(m7_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+library(ggplot2)
+plotty = ggplot(pY,aes(x=condF,y=Reuse, fill=condF))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  facet_wrap(~VoiceF)+
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  theme_bw()+
+  theme(legend.position="none")
+plotty
+
+```
