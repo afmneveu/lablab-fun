@@ -1,0 +1,700 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+## MERGE DFS FROM THE VERSIONS.
+getwd()
+library(car)
+spav2 = read.csv("spav2.csv") # read latest version of list A v2.
+spav3 = read.csv("spav3.csv") # read latest version of list A v3.
+spb = read.csv("spb_all.csv") # read latest version of list B.
+spa1 = rbind(spav2, spav3) # Merging them.
+spa = rbind(spa1, spb)
+# obs nb check. Ok.
+
+write.csv(spa, "sp_all.csv") # written record of merge Prolific Spanish condition lists.
+
+## CLEAN FILLERS
+# First, remove any blanks in Response column.
+spa = spa[!(spa$Response==""), ]
+
+str(spa) # see kind of variable (character or integer) to write number with or without ''.
+
+#211 # practice
+spa = spa[!(spa$Spreadsheet.Row==2 & spa$Trial.Number=='1' & spa$Screen.Number==1), ]
+#212 # practice
+spa = spa[!(spa$Spreadsheet.Row==2 & spa$Trial.Number=='1' & spa$Screen.Number==2), ]
+# remove screen.numbers 3 and 4 (fillers).
+spa = spa[!(spa$Screen.Number==3 | spa$Screen.Number==4), ] # Had used &, didn't work, needed to use or |.
+unique(spa$Screen.Number) # worked.
+
+write.csv(spa, "sp_readyTranscription.csv") # Wrote that one and opened it to transcribe, so no transcription at that stage, but transcriptions below when called again.
+
+## CLEAN BY NATIVE LANGUAGE EXPECTED
+# Need to look at participants' L1 to make sure it's English, if not exclude.
+# Read LeapQs
+lq1 = read.csv("leapqv2A.csv")
+unique(lq1$Participant.Private.ID) # right amount of participants (3).
+lq1 = lq1[!(lq1$Event.Index=="END OF FILE"), ]
+
+lq2 = read.csv("leapqv3A.csv")
+unique(lq2$Participant.Private.ID) # right amount of participants (9).
+lq2 = lq2[!(lq2$Event.Index=="END OF FILE"), ]
+
+lq3 = read.csv("leapqB.csv")
+unique(lq3$Participant.Private.ID) # right amount of participants (13).
+lq3 = lq3[!(lq3$Event.Index=="END OF FILE"), ]
+
+leapq = rbind(lq1, lq2, lq3)
+
+unique(leapq$Participant.Private.ID) # right amount of participants (25).
+library(tidyverse)
+select(leapq, Question.Key, Response)
+filter(leapq, Question.Key == "response-33")
+# spanish (2)
+# Spanish, English (2)
+# I have to exclude these 4. Will do after I merge everything to do the cleaning once.
+
+# Now, numerically code L1 and L2 in leapq.
+
+## DEMOG DATA
+# Demog Age #
+age = filter(leapq, Question.Key=="response-2") # all integers, no sub needed. Age ranges 18-34, good.
+names(age)[names(age)=="Response"] <- "Age"
+age <- age %>%
+  dplyr::select("Participant.Private.ID", "Age")
+
+# Start merging each var of interest from leap q into experimental data table.
+
+sp_data = read.csv("sp_transcribed.csv")
+unique(sp_data$Participant.Private.ID) # 26 participants, one extra?? 
+# The 4310122 is not listed in leapqs. How can there be 26 ids when there are only 25 Ps?
+# Found it, it's that person who timed out, marked as live and not complete under Participant.Status. Remove.
+sp_data = sp_data[!(sp_data$Participant.Status=="live"), ]
+unique(sp_data$Participant.Private.ID) # 25, good.
+
+sp_data_age = merge(sp_data, age, by="Participant.Private.ID") # Now it matches on observations.
+
+# Demog education # Data isn't continuous but ordinal. Info on treating ordinal var as num: 
+# https://www.theanalysisfactor.com/pros-and-cons-of-treating-ordinal-variables-as-nominal-or-continuous/
+# The distance between the levels of ed aren't exactly equal:
+#Less than High School = If you count ed from age 6, until 14 = 8 or less
+#High School = 12
+#Professional Training = 13 or 14
+#Some College = 13-16
+#College = 16
+#Some Graduate School = 17
+#Masters = 18
+#Ph.D./M.D./J.D. = 18+
+
+# No one had response 6-1, 6-8 and 6-9.
+
+Ed <- filter(leapq, Question.Key=="response-6-2"|Question.Key=="response-6-4"|Question.Key=="response-6-5"|Question.Key=="response-6-6"|Question.Key=="response-6-7")
+
+Ed$Ed <- varRecode(Ed$Question.Key, c("response-6-2", "response-6-4", "response-6-5", "response-6-6", "response-6-7"), c(2, 4, 5, 6, 7))
+library(dplyr)
+Ed <- Ed %>%
+  dplyr::select("Participant.Private.ID", "Ed")
+
+sp_data_age_ed <- merge(sp_data_age, Ed, by='Participant.Private.ID')
+
+L2 <- filter(leapq, Question.Key=="response-34")
+table(L2$Response) # I can first run the data with everyone and then more stringently just with the Spanish L2.
+L2$L2Type <- varRecode(L2$Response, c("Cantonese", "english","English", "English, Spanish","Kannada","spanish", "Spanish", "Spanish ", "spanishb"), c(0, 3, 3, 2, 0, 1 ,1, 1, 1)) # 0 = other language, 3 = Eng, 1 = Sp, 2 is both Eng-Sp.
+library(plyr) # Renaming the Response column before merging.
+names(L2)[names(L2)=="Response"] <- "L2Name"
+names(L2)
+
+L2_AoA <- filter(leapq, Question.Key=="response-24")
+names(L2_AoA)[names(L2_AoA)=="Response"] <- "L2_AoA"
+names(L2_AoA)
+
+L2 <- L2 %>%
+  dplyr::select("Participant.Private.ID", "L2Name", "L2Type")
+
+L2$L2_Binary = varRecode(L2$L2Type, c(0, 3, 3, 2, 0, 1 ,1, 1, 1), c(0, 0, 0, 0, 0, 1, 1, 1, 1))
+
+L2_AoA <- L2_AoA %>%
+  dplyr::select("Participant.Private.ID", "L2_AoA")
+
+sp_data_age_ed_L2 <- merge(sp_data_age_ed, L2, by='Participant.Private.ID')
+sp_data_age_ed_L2_L2AoA <- merge(sp_data_age_ed_L2, L2_AoA, by='Participant.Private.ID')
+
+
+
+# Good, now I have experimental data and demographic data. Still need WJ, THQ and LgMix.
+
+
+## WOODCOCK JOHNSONS, EXCLUDE BY TIME FIRST
+# Looking at time to complete on gorilla for exp task and WJs, a couple would need to be excluded because took 42 to hour+ on exp task. 
+# On list B:
+# Start Date 	20/07/2021 18:25 End Date 	20/07/2021 19:30 60ebad13d8a5b44c5ce36907
+# Start Date 	21/07/2021 01:26 End Date 	21/07/2021 02:46 5c2c189b867f660001af5dc5
+# Start Date 	21/07/2021 10:56 End Date 	21/07/2021 11:45 5fb8631980c1d05b012951f2 (took long on WJs)
+# On list A:
+# Start Date 	20/07/2021 14:07 End Date 	20/07/2021 15:20 60d1c7bdec31eb3880d3be6f
+# Start Date 	20/07/2021 14:04 End Date 	20/07/2021 15:00 6018a0ba98e6b0193fc4fc08
+# Start Date 	20/07/2021 13:39 End Date 	20/07/2021 14:25 5e8fa34befd9542a66b02feb (took long on WJs)
+
+# Reading WJ Eng
+wj1 = read.csv("wjAv2E.csv")
+unique(wj1$Participant.Private.ID) # right amount of participants (3).
+wj1 = wj1[!(wj1$Event.Index=="END OF FILE"), ]
+
+wj2 = read.csv("wjAv3E.csv")
+unique(wj2$Participant.Private.ID) # right amount of participants (9).
+wj2 = wj2[!(wj2$Event.Index=="END OF FILE"), ]
+
+wj3 = read.csv("wjBE.csv")
+unique(wj3$Participant.Private.ID) # right amount of participants (13).
+wj3 = wj3[!(wj3$Event.Index=="END OF FILE"), ]
+
+wjE = rbind(wj1, wj2, wj3)
+
+# Scoring the WJs. For now I want 1s and 0s, then we'll get an average score that'll go in the main db.
+
+#Let's check each word to see if it is one of the words we're looking for. First put together all the words we care about
+wjE$Response <- tolower(wjE$Response) # not doing it.
+
+
+WJEng_Acc = c("luggage", "suitcase", "suitcases","ironing board","compass","pliers", "fire extinguisher", "file cabinet", "filing cabinet", "cabinet","thimble", "thimbel", "hang glider","hinges", "hourglass", "tripod", "coliseum", "observatory", "flamenco", "salsa dancer", "metronome", "pendulum", "candelabra", "candelabrum", "turnstile", "turnstyle", "yoke", "neck yoke", "ox yoke", "monocle", "cornucopia", "festoon", "garland", "tendril", "sabot", "a candlabra", "a clog", "a compass", "a cornucopia", "a filing cabinet", "a fire extinguisher", "a flamenco dancer", "a garland", "a metronome", "a monocle", "a pendulum", "a thimble", "a tripod", "a turnstile", "a yoke", "an hourglass", "an ironing board", "cabinent", "Candelabra", "Candelabrum", "candleabra", "Candleabra", "coleseum", "Collisseum", "Colesseum", "colessium", "Coliseum", "Coliseum (sp?)", "colisieum", "colisium", "Colisseum", "Collaseum", "colleseum", "collesium", "collessum", "colliseum", "Colliseum", "colloseum", "Colloseum", "collosseum", "Collosseum", "collsium", "Colluseam", "colluseum", "coloseum", "colossem", "colosseum", "Colosseum", "Colossium", "colusium", "colussium", "com[pass", "Compas", "Compass", "cornacopia", "Cornacopia", "cornicopia", "Cornicopia", "cornocopia", "cornucopa", "cornucopeia", "Cornucopia", "file cabinent", "File Cabinet", "File cabnet", "file cabnient", "file cabniet", "Fileing cabinet", "filing cabenet", "Filing cabinet", "Filing Cabinet", "filing cabinet.", "filing cabinets", "filing cabnet", "filling cabinet", "fire estinguisher", "fire extinguiser", "Fire Extinguisher", "fire extingusher", "fire extingusher", "Fire extingusiher", "Fire extuinguisher", "flamenca dancer", "Flamenco", "flamenco dancer", "Flamenco dancer", "flamenco dancer?", "flamenco dancing", "flaminco dancer", "Garland", "hang glide", "Hang glider", "hang gliding", "Hang gliding", "hang-glider", "Hang-Gliding", "hangglider", "Hangglider", "hanggliding", "hanglider", "Hanglider", "hangliding", "hinge", "Hinge", "hinge?", "Hinges", "hoourglass", "hour glass", "Hour-glass", "Hourglas", "hourglass", "Hourglass", "hourglass (timer)", "Ironing Board", "metranome", "metranome", "metranome", "Metrinome", "Metronome", "metronoome", "monacle", "Monacle", "monical", "monicle", "monocal", "Monocle", "Monocole", "monocole", "Observatory", "observatoy", "Pedilum", "pedulum", "pedulum", "pendellum", "pendelum", "Pendelum", "penduljm", "Pendulum", "pilers", "pliars", "Pliars", "plier", "plyer", "plyers", "Plyers", "salsa dancer", "Salsa dancer", "slasa dcer", "suit cases", "Suitcase", "Suitcases", "suitecases", "Tendril", "thimbill", "thimbol", "tri pod", "tri-pod", "Tri-pod", "Tripod", "trunstile", "turn stile", "turn style", "Turnstile", "turnstiles", "Turnstyle", "Yoke", "yolk", "Yolk", "paragliding", "baggage", "door hinges", "Baggage", "Door hinge", "Paraglider", "paraglider", "Ironing board", "Thimble", "The Coliseum", "cornocopea", "coricopia", "luggages","Luggage", "Luggages", "the Space Observatory", "thumbelle", "the Colisseum", "Roman Colosseum", "Rome? collaseum?", "turnstill", "Paragliding", "observotiry", "lugaggeq", "lugage", "hige", "door hinges", "door hinge", "collisuem", "colleseuom")
+
+#(From Marg) now make a new column in the words dataframe. Default it to "no"
+wjE$WJEng_Score <- 0
+#Then change it to yes if the word is one of the words we care about
+wjE[wjE$Response%in%WJEng_Acc,]$WJEng_Score<-1
+#Looks at the words data frame! We identified two words.
+
+# Let's get an average score per participant.
+wjE$Avg_WJEng <- mean(wjE$WJEng_Score %in% wjE$Participant.Private.ID) # didn't work.
+wjE$Avg_WJEng <- ave(wjE$WJEng_Score, wjE$Participant.Private.ID) # worked.
+
+Avg_WJEng <- wjE %>%
+  dplyr::select("Participant.Private.ID", "Avg_WJEng")
+
+write.csv(Avg_WJEng, "Avg_WJEng.csv")
+
+# Same thing for Spanish.
+
+wj1 = read.csv("wjAv2S.csv")
+unique(wj1$Participant.Private.ID) # right amount of participants (3).
+wj1 = wj1[!(wj1$Event.Index=="END OF FILE"), ]
+
+wj2 = read.csv("wjAv3S.csv")
+unique(wj2$Participant.Private.ID) # right amount of participants (9).
+wj2 = wj2[!(wj2$Event.Index=="END OF FILE"), ]
+
+wj3 = read.csv("wjBS.csv")
+unique(wj3$Participant.Private.ID) # one extra, probably the live one. Yup.
+wj3 = wj3[!(wj3$Event.Index=="END OF FILE"), ]
+wj3 = wj3[!(wj3$Participant.Status=="live"), ] # Removed.
+
+
+wjS = rbind(wj1, wj2, wj3)
+
+WJSp_Acc <- c("africa", "armonica", "bambu", "barquilla", "caja registradora", "registradora", "cheque", "cheques", "clave", "estetoscopio", "fuelle", "gondola", "llama", "alpaca", "vicuna", "guanaco", "manivela", "polea", "marioneta", "microscopio", "mortero", "pilon", "nudos", "partenon", "pedal", "pedestal", "petroglifo", "plinto", "raqueta","paleta", "san basilio", "torniquete", "Africa", "áfrica", "África", "Africa/ continente", "Alpaca","armónica", "Armónica", "Bambu", "bambú", "Bambú", "Cheque", "el cheque", "el alpaca", "el bambu", "El bambu", "el bambú", "El cheque", "el continente (africa)", "El estetoescopio", "el estétoscopio", "el estétoscopio", "el estetoscopo", "el estetoscopo", "el llama", "el marioneta", "el microscopio", "El microscopio", "el mortero", "el nudo", "El partenón", "el pedal", "El pedal", "El pedestal", "estetescopio", "estetocópio", "Estetoscopio", "Gondola", "góndola", "Góndola", "gondola/barco", "gondula", "la alpaca", "la armonica", "La armonica", "la caja registradora", "la cheque", "la estetoscopio", "La gandola", "la gondola", "la góndola", "la lama", "la llama", "La llama", "la marioneta", "La pedestal", "la raqueta", "la racqueta", "La raqueta", "la raqueta de tenis", "la registradora", "lama", "Llama", "llama, vicuña", "los nudos", "Marioneta", "marionetas", "marionetta", "micoscopio", "microscopiio", "Microscopio", "microscópio", "Microscópio", "nudo", "Nudo", "Nudos", "Partenon", "partenón", "Partenón", "pdeal", "Pedal", "pedal de bicicleta", "racqueta", "Raqueta", "raqueta de tenis", "raqueta de tennis", "raqueta de tenís", "Torniquete", "torniqueta", "Torniqueta", "un cheque", "un pedal de bicicleta”, “chirmolera”, “molcajete”, “cuenco”, “mortar y pestal”, “llama, vicu√±a”, “mortar”, “mocajete”, “mortal”, “pil√≥n”, “pilón", "Molcajete", "Cuenco", "Mocajete", "Morta", "Mortal", "el microscopo", "El microscopo", "El Microscopo", "microscope", "Microscope", "microspoco", "microscopia", "Microscopia", "la microscopa", "microscopa", "Microscopa", "micriscopio", "Microscopo", "Micróscopo", "microspopo", "stesescopo", "Estetiscopio", "el stetoscopio", "stetoscopo", "stetoscopio", "El estetoescopio", "estetescopio", "stescopo", "estetocopa", "titere", "Titere", "Jinete/Marioneta", "payado", "títere", "Títere", "el tititre (no creo que sea correcta, peroalgo así)", "titiritero", "tetera", "Titera", "el africa", "El Africa", "la africa", "La Africa", "La África", "La áfrica", "Raqueta", "pedal de bicicleta", "pedál", "microscopioi", "Cheke", "Checke", "afrika")
+
+#(From Marg) now make a new column in the words dataframe. Default it to "no"
+wjS$WJSp_Score <- 0
+#Then change it to yes if the word is one of the words we care about
+wjS[wjS$Response%in%WJSp_Acc,]$WJSp_Score<-1
+#Looks at the words data frame! We identified two words.
+
+# Let's get an average score per participant.
+wjS$Avg_WJSp <- ave(wjS$WJSp_Score, wjS$Participant.Private.ID) # worked.
+
+Avg_WJSp <- wjS %>%
+  dplyr::select("Participant.Private.ID", "Avg_WJSp")
+
+write.csv(Avg_WJSp, "Avg_WJSp.csv")
+
+# Ok, now merge with sp dataset with all other vars.
+library(tidyverse)
+Avg_WJEng = Avg_WJEng[!duplicated(Avg_WJEng$Participant.Private.ID), ] # # Getting a unique score first for WJs to avoid duplicated rows.
+Avg_WJSp = Avg_WJSp[!duplicated(Avg_WJSp$Participant.Private.ID), ] # Good.
+SP_DATA = merge(sp_data_age_ed_L2_L2AoA, Avg_WJEng, by="Participant.Private.ID") 
+
+# Again, with Sp.
+SP_DATA = merge(SP_DATA, Avg_WJSp, by="Participant.Private.ID")# Nice.
+
+# Get spanish speaking proficiency from leapq as well.
+spSpk <- filter(leapq, Question.Key=="response-30")
+names(spSpk)[names(spSpk)=="Response"] <- "spSpk"
+names(spSpk)
+
+spSpk <- spSpk %>%
+  dplyr::select("Participant.Private.ID", "spSpk")
+SP_DATA = merge(SP_DATA, spSpk, by="Participant.Private.ID")# Nice.
+unique(SP_DATA$Participant.Private.ID)
+# Need to look at translation exp.
+thqv2 = read.csv("thqv2a.csv") # had to resave these after moving to desktop so that they are in the right csv.
+thqv3 = read.csv("thqv3a.csv")
+thqb = read.csv("thqb.csv") 
+thq1 = rbind(thqv2, thqv3) 
+thq = rbind(thq1, thqb)
+thq = thq[!(thq$Participant.Status=="live"), ] # removing 1.
+thq = thq[!(thq$Event.Index=="END OF FILE"), ]
+
+unique(thq$Participant.Private.ID)
+
+thq2 <- thq %>%
+  dplyr::select("Participant.Private.ID", "Question.Key", "Response")
+
+StudiedTR <- filter(thq2, Question.Key=="response-1-1"|Question.Key=="response-1-2"|Question.Key=="response-1-3")
+StudiedTR$Studied_TR <- varRecode(StudiedTR$Question.Key, c("response-1-1", "response-1-2", "response-1-3"), c(1, 1, 0))
+StudiedTR <- StudiedTR %>%
+  dplyr::select("Participant.Private.ID", "Studied_TR")
+
+ProExpTR <- filter(thq2, Question.Key=="response-2-1"|Question.Key=="response-2-2"|Question.Key=="response-2-3"|Question.Key=="response-2-4")
+ProExpTR$ProExp_TR <- varRecode(ProExpTR$Question.Key, c("response-2-1", "response-2-2", "response-2-3", "response-2-4"), c(1, 1, 1, 0))
+ProExpTR <- ProExpTR %>%
+  dplyr::select("Participant.Private.ID", "ProExp_TR")
+
+InformalTR <- filter(thq2, Question.Key=="response-3-1"|Question.Key=="response-3-2")
+InformalTR$Informal_TR <- varRecode(InformalTR$Question.Key, c("response-3-1", "response-3-2"), c(1, 0))
+InformalTR <- InformalTR %>%
+  dplyr::select("Participant.Private.ID", "Informal_TR")
+unique(StudiedTR$Participant.Private.ID) # 1 dupl
+unique(ProExpTR$Participant.Private.ID)
+unique(InformalTR$Participant.Private.ID)
+StudiedTR = StudiedTR[!duplicated(StudiedTR$Participant.Private.ID), ] # # 
+
+SP_DATA = merge(SP_DATA, StudiedTR, by="Participant.Private.ID")# 
+SP_DATA = merge(SP_DATA, InformalTR, by="Participant.Private.ID")# 
+SP_DATA = merge(SP_DATA, ProExpTR, by="Participant.Private.ID")# 
+# Now, contrast all 4 conditions.
+# First create Reuse column. Will look at Voice later.
+library(car)
+library(lmSupport)
+SP_DATA$Reuse <- varRecode(SP_DATA$Coded, c("1, 21",
+                                   "15, 20", "2, 21","5, 21","6, 21","7, 21",
+                                   "1", 
+                                   "2", 
+                                   "5", 
+                                   "6", 
+                                   "16", 
+                                   "18",
+                                   "1, 20", 
+                                   "6, 20", 
+                                   "5, 20", 
+                                   "2, 20", 
+                                   "14, 1", 
+                                   "15, 1", 
+                                   "4", 
+                                   "4, 23", 
+                                   "7, 23", 
+                                   "13", 
+                                   "17",
+                                   "5, 23",
+                                   "19", 
+                                   "8, 23",
+                                   "11",
+                                   "15, 4",
+                                   "15, 13",
+                                   "3",
+                                   "8",
+                                   "12",
+                                   "3, 23",
+                                   "7",
+                                   "13, 20",
+                                   "11, 23",
+                                   "13, 23",
+                                   "14, 8", "11, 22","4, 22", "44, 22", "5,22", "6, 23", "8, 22"), c(1, 1,1,1, 1, 1, 1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0, 0, 0, 0, 0, 0))
+SP_DATA$X = NULL
+
+# Merge with dataset that has the other three 3 conditions.
+# To do that, create Condition column.
+SP_DATA$CondName = "SP"
+SP_DATA$Condition = NULL
+names(SP_DATA)[names(SP_DATA)=="spSpk"] <- "SP_Spk"
+names(SP_DATA)[names(SP_DATA)=="Coded"] <- "Coding" 
+# Will trim data over 3 SDs on exp data, but nt WJ because i don't use that variable eventually. 
+prevD = read.csv("correct_Exp.ID_ohydll.csv")
+unique(prevD$Participant.Completion.Code)
+library(tidyverse)
+# all_cond = bind_rows(prevD, SP_DATA) #Error: Can't combine `..1$SP_Spk` <integer> and `..2$SP_Spk` <character>.
+str(SP_DATA)
+SP_DATA$SP_Spk = as.numeric(SP_DATA$SP_Spk)
+SP_DATA$Coding = as.numeric(SP_DATA$Coding)
+SP_DATA$L2_AoA = as.numeric(SP_DATA$L2_AoA)
+SP_DATA$Age = as.numeric(SP_DATA$Age)
+prevD$Coding = as.numeric(prevD$Coding) 
+names(SP_DATA)[names(SP_DATA)=="Avg_WJEng"] <- "Avg_WJE" # Troubleshoot mistmatched columns.
+
+# Hadn't added an L2_Binary column in SP_DATA, did it above where L2 df created initially. Now merge.
+SP_DATA2 = merge(SP_DATA, L2, by='Participant.Private.ID')
+SP_DATA2$L2Name.y = NULL
+SP_DATA2$L2Type.y = NULL
+names(SP_DATA2)[names(SP_DATA2)=="L2Type.x"] <- "L2Type"
+names(SP_DATA2)[names(SP_DATA2)=="L2Name.x"] <- "L2Name" # Ok.
+# Need to modify Condition from a character to a number.
+# These were the values: #1=CS, 2=EN, 3=TR. So 4 = SP.
+SP_DATA2$Condition = 4
+#Should create a common key as well, ie assign a number per P. Maybe do that 1st.
+
+# Trying to add a unique ID per participant that will become common key.
+library(data.table)
+setDT(prevD)[, id := .GRP, by = Participant.Completion.Code] # Nice! Now challenge is to set a start value for the SP_DATA2, from 100. Didn't find sth online, will do in csv.
+SP_DATA3 = SP_DATA2 %>% dplyr::select("Participant.Private.ID")
+SP_DATA3=SP_DATA3 %>% dplyr::distinct(Participant.Private.ID) # Removed duplicates. Now give unique id.
+setDT(SP_DATA3)[, id := .GRP, by = Participant.Private.ID] 
+write.csv(SP_DATA3, "SP_DATA3.csv")
+# Changed starting value in csv from 100. Reload.
+SP_DATA4 = read.csv("SP_DATA3.csv")
+SP_DATA4$X = NULL
+SP_DATA5 = merge(SP_DATA2, SP_DATA4, by="Participant.Private.ID") # All looks good.
+SP_DATA5$L2_Binary.y = NULL
+names(SP_DATA5)[names(SP_DATA5)=="L2_Binary.x"] <- "L2_Binary" # 
+library(dplyr)
+all_cond = bind_rows(prevD, SP_DATA5) # Same.
+all_cond$X = NULL # Appropriate number of rows without duplications.
+varDescribe(all_cond)
+
+# Now onto centering.
+
+all_cond$EdC <- all_cond$Ed - mean(na.omit(all_cond$Ed, all_cond$id))
+all_cond$AgeC <- all_cond$Age - mean(na.omit(all_cond$Age, all_cond$id))
+all_cond$L2_AoAC <- all_cond$L2_AoA - mean(na.omit(all_cond$L2_AoA, all_cond$id))
+all_cond$Avg_WJSc <- all_cond$Avg_WJS - mean(na.omit(all_cond$Avg_WJS, all_cond$id))
+all_cond$Avg_WJEc <- all_cond$Avg_WJE - mean(na.omit(all_cond$Avg_WJE, all_cond$id))
+all_cond$SP_SpkC <- all_cond$SP_Spk - mean(na.omit(all_cond$SP_Spk, all_cond$id))
+
+write.csv(all_cond, "all_cond.csv")
+
+
+varDescribeBy(all_cond$Reuse,all_cond$Condition) # Remember, #1=CS, 2=EN, 3=TR, 4 = SP. Mean Spanish looks a little lower than CS and Eng, doesn't look like it'll be very sig, which is expected. Quick reminder, the Prolific participants 'replace' the CSD + CogDevSoc ones in the other 3 conditions.
+
+table(all_cond$Condition) # 4 of course has less, will catch up once finished recruiting translators.
+unique(all_cond$Recruit)
+
+# 3 participants have to be excluded in Sp condition because didn't do the task properly: 4307200 (111), 4309542 (114), 4309651 (115). Look up in SP_DATA4 who that is in id. # Remove asdfsu (30 items) - said they are 16. Change the 200 to 20 in age.
+str(all_cond)
+all_cond$id = as.numeric(all_cond$id)
+library(dplyr)
+all_cond2 = filter(all_cond, !(id %in% c(111, 114, 115, 4))) #Should remove 126 obs. Worked.
+
+unique(all_cond2$id)
+
+# Remove outliers based on RTs in time to produce sentences.
+all_cond2$Outlier <- 0
+# calculate subject-specific standard deviation points to establish outlier criteria
+library(plyr)
+data.out <-ddply(subset(all_cond2, Outlier == 0), .(id), transform, 
+                 Pos_outlier = mean(Reaction.Time) + (sd(Reaction.Time)*3), 
+                 Neg_outlier = mean(Reaction.Time) - (sd(Reaction.Time)*3))
+
+data.out$Outlier_P <- ifelse(data.out$Reaction.Time > data.out$Pos_outlier, 1, 0)
+data.out$Outlier_N <- ifelse(data.out$Reaction.Time < data.out$Neg_outlier, 1, 0)
+
+sum(data.out$Outlier_P) ## cases excluded #56
+sum(data.out$Outlier_N) ## 0
+
+all_cond_d_out <- data.out[data.out$Outlier_P==0,] # d_out has the 56 items from exp data removed.
+
+# Dividing in active/passive datasets. Need to add two blocks per list A list B of Sp condition.
+
+Passive2 = filter(all_cond_d_out,Event.Index=="8"&Experiment.ID==27836|Event.Index=="10"&Experiment.ID==27836|Event.Index=="24"&Experiment.ID==27836|Event.Index=="26"&Experiment.ID==27836|Event.Index=="56"&Experiment.ID==27836|Event.Index=="58"&Experiment.ID==27836|Event.Index=="64"&Experiment.ID==27836|Event.Index=="66"&Experiment.ID==27836|Event.Index=="72"&Experiment.ID==27836|Event.Index=="74"&Experiment.ID==27836|Event.Index=="80"&Experiment.ID==27836|Event.Index=="82"&Experiment.ID==27836|Event.Index=="120"&Experiment.ID==27836|Event.Index=="122"&Experiment.ID==27836|Event.Index=="128"&Experiment.ID==27836|Event.Index=="130"&Experiment.ID==27836|
+                   Event.Index=="8"&Experiment.ID==23289|Event.Index=="10"&Experiment.ID==23289|Event.Index=="24"&Experiment.ID==23289|Event.Index=="26"&Experiment.ID==23289|Event.Index=="56"&Experiment.ID==23289|Event.Index=="58"&Experiment.ID==23289|Event.Index=="64"&Experiment.ID==23289|Event.Index=="66"&Experiment.ID==23289|Event.Index=="72"&Experiment.ID==23289|Event.Index=="74"&Experiment.ID==23289|Event.Index=="80"&Experiment.ID==23289|Event.Index=="82"&Experiment.ID==23289|Event.Index=="120"&Experiment.ID==23289|Event.Index=="122"&Experiment.ID==23289|Event.Index=="128"&Experiment.ID==23289|Event.Index=="130"&Experiment.ID==23289|
+                   Event.Index=="8"&Experiment.ID==27842|Event.Index=="10"&Experiment.ID==27842|Event.Index=="24"&Experiment.ID==27842|Event.Index=="26"&Experiment.ID==27842|Event.Index=="56"&Experiment.ID==27842|Event.Index=="58"&Experiment.ID==27842|Event.Index=="64"&Experiment.ID==27842|Event.Index=="66"&Experiment.ID==27842|Event.Index=="72"&Experiment.ID==27842|Event.Index=="74"&Experiment.ID==27842|Event.Index=="80"&Experiment.ID==27842|Event.Index=="82"&Experiment.ID==27842|Event.Index=="120"&Experiment.ID==27842|Event.Index=="122"&Experiment.ID==27842|Event.Index=="128"&Experiment.ID==27842|Event.Index=="130"&Experiment.ID==27842|
+                      Event.Index=="8"&Experiment.ID==53304|Event.Index=="10"&Experiment.ID==53304|Event.Index=="24"&Experiment.ID==53304|Event.Index=="26"&Experiment.ID==53304|Event.Index=="56"&Experiment.ID==53304|Event.Index=="58"&Experiment.ID==53304|Event.Index=="64"&Experiment.ID==53304|Event.Index=="66"&Experiment.ID==53304|Event.Index=="72"&Experiment.ID==53304|Event.Index=="74"&Experiment.ID==53304|Event.Index=="80"&Experiment.ID==53304|Event.Index=="82"&Experiment.ID==53304|Event.Index=="120"&Experiment.ID==53304|Event.Index=="122"&Experiment.ID==53304|Event.Index=="128"&Experiment.ID==53304|Event.Index=="130"&Experiment.ID==53304|
+                   Event.Index=="16"&Experiment.ID==27841|Event.Index=="18"&Experiment.ID==27841|Event.Index=="32"&Experiment.ID==27841|Event.Index=="34"&Experiment.ID==27841|Event.Index=="40"&Experiment.ID==27841|Event.Index=="42"&Experiment.ID==27841|Event.Index=="48"&Experiment.ID==27841|Event.Index=="50"&Experiment.ID==27841|Event.Index=="88"&Experiment.ID==27841|Event.Index=="90"&Experiment.ID==27841|Event.Index=="96"&Experiment.ID==27841|Event.Index=="98"&Experiment.ID==27841|Event.Index=="104"&Experiment.ID==27841|Event.Index=="106"&Experiment.ID==27841|Event.Index=="112"&Experiment.ID==27841|Event.Index=="114"&Experiment.ID==27841|
+                   Event.Index=="16"&Experiment.ID==27835|Event.Index=="18"&Experiment.ID==27835|Event.Index=="32"&Experiment.ID==27835|Event.Index=="34"&Experiment.ID==27835|Event.Index=="40"&Experiment.ID==27835|Event.Index=="42"&Experiment.ID==27835|Event.Index=="48"&Experiment.ID==27835|Event.Index=="50"&Experiment.ID==27835|Event.Index=="88"&Experiment.ID==27835|Event.Index=="90"&Experiment.ID==27835|Event.Index=="96"&Experiment.ID==27835|Event.Index=="98"&Experiment.ID==27835|Event.Index=="104"&Experiment.ID==27835|Event.Index=="106"&Experiment.ID==27835|Event.Index=="112"&Experiment.ID==27835|Event.Index=="114"&Experiment.ID==27835|
+                   Event.Index=="16"&Experiment.ID==27843|Event.Index=="18"&Experiment.ID==27843|Event.Index=="32"&Experiment.ID==27843|Event.Index=="34"&Experiment.ID==27843|Event.Index=="40"&Experiment.ID==27843|Event.Index=="42"&Experiment.ID==27843|Event.Index=="48"&Experiment.ID==27843|Event.Index=="50"&Experiment.ID==27843|Event.Index=="88"&Experiment.ID==27843|Event.Index=="90"&Experiment.ID==27843|Event.Index=="96"&Experiment.ID==27843|Event.Index=="98"&Experiment.ID==27843|Event.Index=="104"&Experiment.ID==27843|Event.Index=="106"&Experiment.ID==27843|Event.Index=="112"&Experiment.ID==27843|Event.Index=="114"&Experiment.ID==27843|
+                    Event.Index=="16"&Experiment.ID==53305|Event.Index=="18"&Experiment.ID==53305|Event.Index=="32"&Experiment.ID==53305|Event.Index=="34"&Experiment.ID==53305|Event.Index=="40"&Experiment.ID==53305|Event.Index=="42"&Experiment.ID==53305|Event.Index=="48"&Experiment.ID==53305|Event.Index=="50"&Experiment.ID==53305|Event.Index=="88"&Experiment.ID==53305|Event.Index=="90"&Experiment.ID==53305|Event.Index=="96"&Experiment.ID==53305|Event.Index=="98"&Experiment.ID==53305|Event.Index=="104"&Experiment.ID==53305|Event.Index=="106"&Experiment.ID==53305|Event.Index=="112"&Experiment.ID==53305|Event.Index=="114"&Experiment.ID==53305)
+                    
+                    
+
+Active2 = filter(all_cond_d_out,Event.Index=="8"&Experiment.ID==27841|Event.Index=="10"&Experiment.ID==27841|Event.Index=="24"&Experiment.ID==27841|Event.Index=="26"&Experiment.ID==27841|Event.Index=="56"&Experiment.ID==27841|Event.Index=="58"&Experiment.ID==27841|Event.Index=="64"&Experiment.ID==27841|Event.Index=="66"&Experiment.ID==27841|Event.Index=="72"&Experiment.ID==27841|Event.Index=="74"&Experiment.ID==27841|Event.Index=="80"&Experiment.ID==27841|Event.Index=="82"&Experiment.ID==27841|Event.Index=="120"&Experiment.ID==27841|Event.Index=="122"&Experiment.ID==27841|Event.Index=="128"&Experiment.ID==27841|Event.Index=="130"&Experiment.ID==27841|
+                   Event.Index=="8"&Experiment.ID==27835|Event.Index=="10"&Experiment.ID==27835|Event.Index=="24"&Experiment.ID==27835|Event.Index=="26"&Experiment.ID==27835|Event.Index=="56"&Experiment.ID==27835|Event.Index=="58"&Experiment.ID==27835|Event.Index=="64"&Experiment.ID==27835|Event.Index=="66"&Experiment.ID==27835|Event.Index=="72"&Experiment.ID==27835|Event.Index=="74"&Experiment.ID==27835|Event.Index=="80"&Experiment.ID==27835|Event.Index=="82"&Experiment.ID==27835|Event.Index=="120"&Experiment.ID==27835|Event.Index=="122"&Experiment.ID==27835|Event.Index=="128"&Experiment.ID==27835|Event.Index=="130"&Experiment.ID==27835|
+                   Event.Index=="8"&Experiment.ID==27843|Event.Index=="10"&Experiment.ID==27843|Event.Index=="24"&Experiment.ID==27843|Event.Index=="26"&Experiment.ID==27843|Event.Index=="56"&Experiment.ID==27843|Event.Index=="58"&Experiment.ID==27843|Event.Index=="64"&Experiment.ID==27843|Event.Index=="66"&Experiment.ID==27843|Event.Index=="72"&Experiment.ID==27843|Event.Index=="74"&Experiment.ID==27843|Event.Index=="80"&Experiment.ID==27843|Event.Index=="82"&Experiment.ID==27843|Event.Index=="120"&Experiment.ID==27843|Event.Index=="122"&Experiment.ID==27843|Event.Index=="128"&Experiment.ID==27843|Event.Index=="130"&Experiment.ID==27843|
+                   Event.Index=="8"&Experiment.ID==53305|Event.Index=="10"&Experiment.ID==53305|Event.Index=="24"&Experiment.ID==53305|Event.Index=="26"&Experiment.ID==53305|Event.Index=="56"&Experiment.ID==53305|Event.Index=="58"&Experiment.ID==53305|Event.Index=="64"&Experiment.ID==53305|Event.Index=="66"&Experiment.ID==53305|Event.Index=="72"&Experiment.ID==53305|Event.Index=="74"&Experiment.ID==53305|Event.Index=="80"&Experiment.ID==53305|Event.Index=="82"&Experiment.ID==53305|Event.Index=="120"&Experiment.ID==53305|Event.Index=="122"&Experiment.ID==53305|Event.Index=="128"&Experiment.ID==53305|Event.Index=="130"&Experiment.ID==53305|
+                   Event.Index=="16"&Experiment.ID==27836|Event.Index=="18"&Experiment.ID==27836|Event.Index=="32"&Experiment.ID==27836|Event.Index=="34"&Experiment.ID==27836|Event.Index=="40"&Experiment.ID==27836|Event.Index=="42"&Experiment.ID==27836|Event.Index=="48"&Experiment.ID==27836|Event.Index=="50"&Experiment.ID==27836|Event.Index=="88"&Experiment.ID==27836|Event.Index=="90"&Experiment.ID==27836|Event.Index=="96"&Experiment.ID==27836|Event.Index=="98"&Experiment.ID==27836|Event.Index=="104"&Experiment.ID==27836|Event.Index=="106"&Experiment.ID==27836|Event.Index=="112"&Experiment.ID==27836|Event.Index=="114"&Experiment.ID==27836|
+                   Event.Index=="16"&Experiment.ID==23289|Event.Index=="18"&Experiment.ID==23289|Event.Index=="32"&Experiment.ID==23289|Event.Index=="34"&Experiment.ID==23289|Event.Index=="40"&Experiment.ID==23289|Event.Index=="42"&Experiment.ID==23289|Event.Index=="48"&Experiment.ID==23289|Event.Index=="50"&Experiment.ID==23289|Event.Index=="88"&Experiment.ID==23289|Event.Index=="90"&Experiment.ID==23289|Event.Index=="96"&Experiment.ID==23289|Event.Index=="98"&Experiment.ID==23289|Event.Index=="104"&Experiment.ID==23289|Event.Index=="106"&Experiment.ID==23289|Event.Index=="112"&Experiment.ID==23289|Event.Index=="114"&Experiment.ID==23289|
+                   Event.Index=="16"&Experiment.ID==27842|Event.Index=="18"&Experiment.ID==27842|Event.Index=="32"&Experiment.ID==27842|Event.Index=="34"&Experiment.ID==27842|Event.Index=="40"&Experiment.ID==27842|Event.Index=="42"&Experiment.ID==27842|Event.Index=="48"&Experiment.ID==27842|Event.Index=="50"&Experiment.ID==27842|Event.Index=="88"&Experiment.ID==27842|Event.Index=="90"&Experiment.ID==27842|Event.Index=="96"&Experiment.ID==27842|Event.Index=="98"&Experiment.ID==27842|Event.Index=="104"&Experiment.ID==27842|Event.Index=="106"&Experiment.ID==27842|Event.Index=="112"&Experiment.ID==27842|Event.Index=="114"&Experiment.ID==27842|
+                   Event.Index=="16"&Experiment.ID==53304|Event.Index=="18"&Experiment.ID==53304|Event.Index=="32"&Experiment.ID==53304|Event.Index=="34"&Experiment.ID==53304|Event.Index=="40"&Experiment.ID==53304|Event.Index=="42"&Experiment.ID==53304|Event.Index=="48"&Experiment.ID==53304|Event.Index=="50"&Experiment.ID==53304|Event.Index=="88"&Experiment.ID==53304|Event.Index=="90"&Experiment.ID==53304|Event.Index=="96"&Experiment.ID==53304|Event.Index=="98"&Experiment.ID==53304|Event.Index=="104"&Experiment.ID==53304|Event.Index=="106"&Experiment.ID==53304|Event.Index=="112"&Experiment.ID==53304|Event.Index=="114"&Experiment.ID==53304)
+
+Active2$Voice <- .5
+Passive2$Voice <- -.5   
+
+all_condV <- rbind(Active2, Passive2) # all obs are here, with reintroduction of condition of ohydll and correct id (manip with SP_DATA3 outside R, not to forget).
+
+write.csv(Active2, "Active2.csv")
+write.csv(Passive2, "Passive2.csv")
+write.csv(all_cond_d_out, "all_cond_d_out.csv")
+write.csv(all_condV, "all_condV.csv")
+
+
+
+## MODELS
+# With everyone (not filetering out those who don't have SP as L2).
+library(lme4)
+control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000))
+library(psych)
+
+all_condV$CondName = as.factor(all_condV$CondName) 
+class(all_condV$CondName) # It's character, we need it to be factor.
+levels(all_condV$CondName) 
+
+contrasts(all_condV$CondName) = varContrasts(all_condV$CondName, Type = "Dummy", RefLevel = 4)# Got contrasts.They are read in alphabetical order so, CS, EN, SP, then TR (1, 2, 3, 4).
+
+m1 <- glmer(Reuse ~ (CondName * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index)), family = binomial, data=all_condV, control=control)
+summary(m1)
+Anova(m1, type=3)
+
+library(ggplot2)
+library(graphics)
+all_condV$condF <- as.factor(varRecode(all_condV$CondName, c("EN", "SP", "CS", "TR"), c('English','Spanish','Codeswitched', 'Translation')))
+
+m1_graph <- glm(Reuse ~ condF, family = binomial, data=all_condV)
+modelSummary(m1_graph)
+
+pX = expand.grid(condF = c('English','Spanish','Codeswitched', 'Translation'))
+
+pY <- predict(m1_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(condF,Reuse))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  theme_bw()
+plotty
+# Running on L2 SP only
+
+all_condV_L2SP <- filter(all_condV, L2_Binary==1) 
+write.csv(all_condV_L2SP, "all_condV_L2SP.csv")
+
+
+contrasts(all_condV_L2SP$CondName) = varContrasts(all_condV_L2SP$CondName, # The factor
+                                  Type = "Dummy", #type of contrast
+                                  RefLevel = 4)
+
+m2 <- glmer(Reuse ~ (CondName * SP_SpkC + EdC + AgeC + Avg_WJEc + (1 + CondName * SP_SpkC|Event.Index)), family = binomial, data=all_condV_L2SP, control=control)
+summary(m2)
+Anova(m2, type=3)
+
+
+all_condV_L2SP$condF <- as.factor(varRecode(all_condV_L2SP$CondName, c("EN", "SP", "CS", "TR"), c('English','Spanish','Codeswitched', 'Translation')))
+
+m2_graph <- glm(Reuse ~ condF, family = binomial, data=all_condV_L2SP)
+modelSummary(m2_graph)
+
+pX = expand.grid(condF = c('English','Spanish','Codeswitched', 'Translation'))
+
+pY <- predict(m2_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+
+plotty = ggplot(pY,aes(condF,Reuse))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  coord_cartesian(xlim = c(.5, 3.5),ylim = c(0, 1), expand = F) +
+  theme_bw()
+plotty
+
+## 4 Ps with HL not removed - did it in csv: 
+#gkixbx already out
+#odcerv already out
+#wfoylw remove - was the Other recruit group
+#zotlqp remove
+
+# Correct age 200 to 20.
+all_condV_L2SP_noHL$Age <- sub("200", "20", all_condV_L2SP_noHL$Age)
+all_condV_L2SP_noHL$Age <- as.numeric(all_condV_L2SP_noHL$Age)
+all_condV_L2SP_noHL$AgeC <- all_condV_L2SP_noHL$Age - mean(na.omit(all_condV_L2SP_noHL$Age))
+varDescribe(all_condV_L2SP_noHL)
+
+
+
+library(dplyr)
+all_condV_L2SP_noHL = filter(all_condV_L2SP, !(Participant.Completion.Code %in% c("wfoylw", "zotlqp"))) # Should remove 62 items. Worked.
+
+all_condV_L2SP_noHL$X = NULL
+all_condV_L2SP_noHL$CondName = varRecode(all_condV_L2SP_noHL$Condition, c(1, 2, 3, 4), c("CS", "EN", "TR", "SP")) #1=CS, 2=EN, 3=TR, 4=SP. Looks good.
+unique(all_condV_L2SP_noHL$Condition)
+
+# Centering THQ vars.
+all_condV_L2SP_noHL$Informal_TRC=all_condV_L2SP_noHL$Informal_TR-mean(na.omit(all_condV_L2SP_noHL$Informal_TR))
+all_condV_L2SP_noHL$ProExp_TRC=all_condV_L2SP_noHL$ProExp_TR-mean(na.omit(all_condV_L2SP_noHL$ProExp_TR))
+all_condV_L2SP_noHL$Studied_TRC=all_condV_L2SP_noHL$Studied_TR-mean(na.omit(all_condV_L2SP_noHL$Studied_TR))
+
+library(psych)
+corr.test(all_condV_L2SP_noHL[, c('Informal_TR', 'ProExp_TR', 'Studied_TR')])
+# Using pro exp as best indicator, moderatly corr with Studied TR but weak neg corr with informal TR exp.
+
+
+all_condV_L2SP_noHL$CondName <- as.factor(all_condV_L2SP_noHL$CondName)
+levels(all_condV_L2SP_noHL$CondName) 
+contrasts(all_condV_L2SP_noHL$CondName) = varContrasts(all_condV_L2SP_noHL$CondName, 
+                                  Type = "Dummy", 
+                                  RefLevel = 4)
+library(lme4)
+control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=100000))
+control2 = glmerControl(optimizer ="Nelder_Mead")
+control3 = glmerControl(optimizer ='optimx', optCtrl=list(method='nlminb'))
+library(psych)
+library(optimx)
+model1 <- glmer(Reuse ~ (CondName * Voice * SP_SpkC + ProExp_TRC + EdC + AgeC + Avg_WJEc + (1|Event.Index) + (1|id)), family = binomial, data=all_condV_L2SP_noHL, control=control)
+summary(model1)
+Anova(model1, type=3)
+
+model1b <- glmer(Reuse ~ (CondName * Voice + SP_SpkC + ProExp_TRC + EdC + AgeC + Avg_WJEc + (1|Event.Index) + (1|id)), family = binomial, data=all_condV_L2SP_noHL, control=control) # SPspk as covar since it doesn't look to have an effect looking at deviance table.
+summary(model1b)
+Anova(model1b, type=3)
+
+contrasts(all_condV_L2SP_noHL$CondName) = varContrasts(all_condV_L2SP_noHL$CondName, 
+                                  Type = "Dummy", 
+                                  RefLevel = 2)
+model2a <- glmer(Reuse ~ (CondName * Voice + SP_SpkC + ProExp_TRC + EdC + AgeC + Avg_WJEc + (1|Event.Index) + (1|id)), family = binomial, data=all_condV_L2SP_noHL, control=control)
+summary(model2a)
+Anova(model2, type=3)
+
+# Removed random effects to help with singularity, resolved.
+# Graphs
+library(ggplot2)
+library(graphics)
+all_condV_L2SP_noHL$condF <- as.factor(varRecode(all_condV_L2SP_noHL$CondName, c("EN", "SP", "CS", "TR"), c('English','Spanish','Codeswitched', 'Translation')))
+
+all_condV_L2SP_noHL$VoiceF <- as.factor(varRecode(all_condV_L2SP_noHL$Voice, c(-.5, .5), c("Passive", "Active")))
+
+# m7_graph <- glmer(Reuse ~ (condF * VoiceF* SP_Spk + Ed + Age + Avg_WJE), family = binomial, data=all_condV_L2SP_noHL) # Not accounting for covar.
+m_graph <- glm(Reuse ~ (condF * VoiceF + SP_Spk + Ed + Age + Avg_WJE + ProExp_TR), family = binomial, data=all_condV_L2SP_noHL) # De=center vars.
+
+all_condV_L2SP_noHL$Age = as.numeric(all_condV_L2SP_noHL$Age)
+all_condV_L2SP_noHL$Ed = as.numeric(all_condV_L2SP_noHL$Ed)
+all_condV_L2SP_noHL$Avg_WJE = as.numeric(all_condV_L2SP_noHL$Avg_WJE)
+str(all_condV_L2SP_noHL)
+
+pX = expand.grid(condF= c("English","Spanish","Codeswitched", "Translation"),
+                 VoiceF = c("Passive", "Active"),
+                 SP_Spk=mean(all_condV_L2SP_noHL$SP_Spk),
+                 Ed=mean(all_condV_L2SP_noHL$Ed),
+                 Age=mean(all_condV_L2SP_noHL$Age),
+                 Avg_WJE=mean(all_condV_L2SP_noHL$Avg_WJE),
+                 ProExp_TR=mean(all_condV_L2SP_noHL$ProExp_TR))
+
+pY <- predict(m_graph, pX, type='response', se.fit=T)
+pY <- cbind(pY, pX)
+pY$Reuse <- pY$fit
+library(ggplot2)
+
+plotty = ggplot(pY,aes(x=condF,y=Reuse, fill=condF))+
+  geom_bar(stat="identity") +
+  geom_errorbar(aes(ymin=Reuse-se.fit,ymax=Reuse+se.fit), stat='identity', width=.25) +
+  facet_wrap(~VoiceF)+
+  ylab("Probability of Reuse")+
+  xlab("Condition") +
+  theme_bw()+
+  theme(legend.position="none")
+plotty
+
+### From Lab 23 ###
+# What method would we use if we were doing 4+ comparisons?
+# Holm-Bonferroni correction. This correction adjusts the p-values of your tests upward by a factor 
+# related to the number of comparisons that you've made. You can make a Holm-Bonferroni correction 
+# by using the p.adjust() function.
+
+# First, create an object to hold the p-values 
+ps = numeric(length = 4)
+ps
+
+# Second, get the p-values from the models.
+# The coefficients attribute from our summary stores the p-values for each of our statistical tests
+summary(model1b)$coefficients
+summary(model2a)$coefficients
+# We'll use this feature to fill in our vector
+ps[1] = summary(model1b)$coefficients[13, 4]
+ps[2] = summary(model2a)$coefficients[12, 4]
+ps = sort(ps) #sort from smallest to largest
+
+library(stats)
+p.adjust(ps, "holm")
+# Let's compare them to the old values:
+ps
+
+# 0.02507726 0.19872310 0.55348539 0.55348539 0.55348539 0.55348539 # Adjusted
+
+# 0.004179543 0.039744620 0.138371348 0.171526508 0.194934917 0.436051195 # Old ones.
+
+# More viewable
+round(p.adjust(ps, "holm"), digits = 5)
+# These are our new p-values.
+### /From Lab 23 ###
+
+# Need to get participant characteristics.
+EN = filter(all_condV_L2SP_noHL, Condition==2)
+table(EN$Condition) # Good.
+en = unique(EN$id)
+length(en)
+varDescribe(EN)
+en = unique(EN$Recruit)
+table(EN$Recruit, EN$id)
+str(EN)
+
+SP = filter(all_condV_L2SP_noHL, Condition==4) 
+table(SP$Condition) # Good.
+sp = unique(SP$id)
+length(sp)
+varDescribe(SP)
+
+CS = filter(all_condV_L2SP_noHL, Condition==1)
+table(CS$Condition) # Good.
+cs = unique(CS$id)
+length(cs)
+varDescribe(CS)
+table(CS$Recruit, CS$id)
+
+TR = filter(all_condV_L2SP_noHL, Condition==3)
+table(TR$Condition) # Good.
+tr = unique(TR$id)
+length(tr)
+varDescribe(TR)
+table(TR$Recruit, TR$id)
+#1=CS, 2=EN, 3=TR, 4 = SP
+
+unique(SP$id)
+library(plyr)
+count(CS, "id")
+
+varDescribe(SP)
+count(EN, "Recruit")
+SP <- SP %>%
+  dplyr::select("id", "Recruit")
+SP = SP[!duplicated(SP$id), ] # 
+table(SP$Recruit)
+1100/22
+ave(SP$Age)
+mean(all_condV_L2SP_noHL$Age[all_condV_L2SP_noHL$Condition==4])
+sd(all_condV_L2SP_noHL$Age[all_condV_L2SP_noHL$Condition==4])
+
+# Going to test the interaction at high and low levels of SP spk, since there is a sig 3-way interac.
+table(all_condV_L2SP_noHL$SP_Spk) # look at 3 vs 9, large enough n and separate enough for hi and lo.
+all_condV_L2SP_noHL$SP_SpkHI = all_condV_L2SP_noHL$SP_Spk - 9
+all_condV_L2SP_noHL$SP_SpkLO = all_condV_L2SP_noHL$SP_Spk - 3
+
+contrasts(all_condV_L2SP_noHL$CondName) = varContrasts(all_condV_L2SP_noHL$CondName, 
+                                  Type = "Dummy", 
+                                  RefLevel = 2)
+model2 <- glmer(Reuse ~ (CondName * Voice * SP_SpkHI + EdC + AgeC + Avg_WJEc + ProExp_TR+ (1|Event.Index) + (1|id)), family = binomial, data=all_condV_L2SP_noHL, control=control)
+summary(model2)
+Anova(model2, type=3)
+
+contrasts(all_condV_L2SP_noHL$CondName) = varContrasts(all_condV_L2SP_noHL$CondName, 
+                                  Type = "Dummy", 
+                                  RefLevel = 4)
+model2 <- glmer(Reuse ~ (CondName * Voice * SP_SpkLO + EdC + AgeC + Avg_WJEc + ProExp_TR + (1|Event.Index) + (1|id)), family = binomial, data=all_condV_L2SP_noHL, control=control)
+summary(model2)
+Anova(model2, type=3)
+
+# Power and ES
+modelPower(pc = 12, pa = 13, N = 88, peta2 = .06) 
+```
+
